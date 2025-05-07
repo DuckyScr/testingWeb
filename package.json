@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "create-admin": "ts-node ./scripts/create-admin.ts"
+    "create-admin": "ts-node ./src/scripts/create-admin.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
