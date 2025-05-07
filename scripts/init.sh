@@ -14,7 +14,7 @@ echo "Running database migrations..."
 npx prisma db push
 
 echo "Creating admin user..."
-node scripts/create-user.js
+npm run create-user
 
 echo "Starting the application..."
 npm start
