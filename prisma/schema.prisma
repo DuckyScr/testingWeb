@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Client Client[] @relation("UserClients")
+  logs   Log[]    @relation("UserLogs")
+}
+
+model RolePermission {
+  id         String  @id @default(cuid())
+  role       String
+  permission String
+  allowed    Boolean @default(false)
+
+  @@unique([role, permission])
+}
+
+model Client {
+  id                  Int     @id @default(autoincrement())
+  ico                 String  @unique
+  companyName         String
+  fveName             String?
+  fveAddress          String?
+  distanceKm          Float?
+  installedPower      Float?
+  contactPerson       String?
+  phone               String?
+  email               String?
+  salesRepId          String?
+  salesRep            User?   @relation("UserClients", fields: [salesRepId], references: [id])
+  marketingBan        Boolean?
+  offerSent           Boolean?
+  offerSentTo         String?
+  offerSentDate       DateTime?
+  offerApproved       Boolean?
+  offerApprovedDate   DateTime?
+  offerRejectionReason String?
+  totalPriceExVat     Float?
+  analysisPrice       Float?
+  dataCollectionPrice Float?
+  transportPrice      Float?
+  marginGroup         String?
+  multipleInspections Boolean?
+  inspectionDeadline  DateTime?
+  customContract      Boolean?
+  contractSignedDate  DateTime?
+  readyForBilling     Boolean?
+  firstInvoiceAmount  Float?
+  firstInvoiceDate    DateTime?
+  firstInvoiceDueDate DateTime?
+  firstInvoicePaid    Boolean?
+  secondInvoiceAmount Float?
+  secondInvoiceDate   DateTime?
+  secondInvoiceDueDate DateTime?
+  secondInvoicePaid   Boolean?
+  finalInvoiceAmount  Float?
+  finalInvoiceDate    DateTime?
+  finalInvoiceDueDate DateTime?
+  finalInvoicePaid    Boolean?
+  totalPriceIncVat    Float?
+  flightConsentSent   Boolean?
+  flightConsentSentDate DateTime?
+  flightConsentSigned Boolean?
+  flightConsentSignedDate DateTime?
+  fveDrawingsReceived Boolean?
+  fveDrawingsReceivedDate DateTime?
+  permissionRequired  Boolean?
+  permissionRequested Boolean?
+  permissionRequestedDate DateTime?
+  permissionRequestNumber String?
+  permissionStatus    String?
+  permissionValidUntil DateTime?
+  pilotAssigned       Boolean?
+  pilotName           String?
+  pilotAssignedDate   DateTime?
+  expectedFlightDate  DateTime?
+  photosTaken         Boolean?
+  photosDate          DateTime?
+  photosTime          String?
+  panelTemperature    Float?
+  illumination        Float?
+  photosUploaded      Boolean?
+  analysisStarted     Boolean?
+  analysisStartedDate DateTime?
+  analysisCompleted   Boolean?
+  analysisCompletedDate DateTime?
+  reportCreated       Boolean?
+  reportSent          Boolean?
+  reportSentDate      DateTime?
+  feedbackReceived    Boolean?
+  feedbackContent     String?
+  status              String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  action    String
+  details   String
+  entity    String
+  entityId  String
+  severity  String   @default("info")
+  userId    String
+  user      User     @relation("UserLogs", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
