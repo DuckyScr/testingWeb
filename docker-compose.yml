@@ -17,7 +17,7 @@ services:
   db:
     image: postgres
     ports:
-      - "7777:5432"
+      - "5432:7777"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
