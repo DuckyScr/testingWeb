@@ -11,8 +11,6 @@ wait_for_db() {
 wait_for_db
 
 echo "Running database migrations..."
-## REMOVE IN PRODUCTION
-npx prisma migrate reset --force
 npx prisma db push
 
 echo "Creating admin user..."
