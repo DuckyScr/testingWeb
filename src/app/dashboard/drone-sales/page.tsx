@@ -28,69 +28,42 @@ interface DroneSale {
   companyName: string;
   ico: string;
   fveName: string;
-  fveAddress: string;
+  address: string;
   distanceKm: string;
   contactPerson: string;
   phone: string;
   email: string;
-  salesRep: string;
   marginGroup: string;
   status?: string;
-  droneModel?: string;
-  droneType?: string;
-  offerSentDate?: string;
-  contractSignedDate?: string;
-  deliveryDate?: string;
+  notes: string;
 }
 
 // Define the categories for drone sales
 const CATEGORIES = [
   "základní_informace",
   "kontakty",
-  "nabídka_a_smlouva",
-  "fakturace",
-  "dokumenty"
 ];
 
 // Map for display names
 const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
   "základní_informace": "Základní informace",
   "kontakty": "Kontakty",
-  "nabídka_a_smlouva": "Nabídka a smlouva",
-  "fakturace": "Fakturace",
-  "dokumenty": "Dokumenty"
 };
-
 // Define fields for each category
-const CATEGORY_FIELDS: Record<string, { field: string, label: string }[]> = {
+const CATEGORY_FIELDS: Record<string, { field: string, label: string, type?: string }[]> = {
   "základní_informace": [
-    { field: "companyName", label: "Název společnosti" },
+    { field: "companyName", label: "Název společnosti",  },
     { field: "ico", label: "IČO" },
-    { field: "fveName", label: "Název FVE" },
-    { field: "fveAddress", label: "Adresa FVE" },
+    { field: "address", label: "Adresa FVE" },  // Changed from fveAddress to address
     { field: "distanceKm", label: "Vzdálenost tam a zpět (km)" }
   ],
   "kontakty": [
     { field: "contactPerson", label: "Kontaktní osoba" },
     { field: "phone", label: "Telefon" },
-    { field: "email", label: "Email" },
+    { field: "email", label: "Email", type: "email" },
     { field: "salesRep", label: "Obchodní zástupce" },
     { field: "marginGroup", label: "Maržová skupina" }
   ],
-  "nabídka_a_smlouva": [
-    { field: "droneModel", label: "Model dronu" },
-    { field: "droneType", label: "Typ dronu" },
-    { field: "status", label: "Status" },
-    { field: "offerSentDate", label: "Datum odeslání nabídky" },
-    { field: "contractSignedDate", label: "Datum podpisu smlouvy" }
-  ],
-  "fakturace": [
-    { field: "deliveryDate", label: "Datum dodání" },
-    { field: "totalPrice", label: "Celková cena" }
-  ],
-  "dokumenty": [
-    { field: "notes", label: "Poznámky" }
-  ]
 };
 
 export default function DroneSalesPage() {

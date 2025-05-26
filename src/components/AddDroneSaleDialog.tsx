@@ -24,8 +24,6 @@ export default function AddDroneSaleDialog({
     phone: "",
     email: "",
     address: "",
-    droneModel: "",
-    droneType: "",
     status: "new",
     notes: "",
   });
@@ -67,8 +65,6 @@ export default function AddDroneSaleDialog({
         phone: "",
         email: "",
         address: "",
-        droneModel: "",
-        droneType: "",
         status: "new",
         notes: "",
       });
@@ -148,30 +144,6 @@ export default function AddDroneSaleDialog({
                 id="address"
                 name="address"
                 value={formData.address}
-                onChange={handleChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="droneModel" className="text-right">
-                Drone Model
-              </Label>
-              <Input
-                id="droneModel"
-                name="droneModel"
-                value={formData.droneModel}
-                onChange={handleChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="droneType" className="text-right">
-                Drone Type
-              </Label>
-              <Input
-                id="droneType"
-                name="droneType"
-                value={formData.droneType}
                 onChange={handleChange}
                 className="col-span-3"
               />
