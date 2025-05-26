@@ -17,4 +17,4 @@ echo "Creating admin user..."
 npm run create-user
 
 echo "Starting the application..."
-npm start
+npm run dev
