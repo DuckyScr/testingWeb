@@ -10,116 +10,184 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User model for authentication
 model User {
-  id        String   @id @default(cuid())
+  id        String      @id @default(uuid())
   email     String   @unique
   name      String?
   password  String
-  role      String   @default("USER")
+  role      String   @default("user") // admin, manager, user
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  clients   Client[]
+  logs      Log[]
 
-  Client Client[] @relation("UserClients")
-  logs   Log[]    @relation("UserLogs")
+  DroneSale DroneSale[]
 }
 
+// Client model for FVE (Solar) clients
+model Client {
+  id                      Int       @id @default(autoincrement())
+  companyName             String
+  ico                     String?   // IČO field
+  parentCompany          String?   // mateřská firma
+  parentCompanyIco       String?   // ičo mateřské firmy
+  dataBox                String?   // Datová schránka
+  fveName                String?   // FVE - jméno
+  installedPower         String?    // instalovaný výkon
+  fveAddress             String?   // Adresa FVE
+  gpsCoordinates         String?   // GPS
+  distanceKm             String?    // Vzdálenost tam a zpět
+  serviceCompany         String?   // Servisní firma
+  serviceCompanyIco      String?   // ičo servisní firmy
+  
+  // Contact information
+  contactPerson          String?   // Kontakt - jméno
+  phone                  String?   // Kontakt - telefon
+  email                  String?   // Kontakt - email
+  contactRole            String?   // kontakt funkce
+  marketingBan           Boolean   @default(false) // Zákaz marketingových oslovení
+  
+  // Offer and contract
+  offerSent              Boolean   @default(false) // Poslána ANO/NE
+  offerSentTo            String?   // Posláno kam?
+  offerSentDate          DateTime? // Kdy?
+  offerApproved          Boolean   @default(false) // Souhlas s nabídkou
+  offerApprovedDate      DateTime? // Kdy schváleno?
+  offerRejectionReason   String?   // Pokud NE tak proč?
+  priceExVat             String?    // Cena bez DPH
+  dataAnalysisPrice      String?    // Cena za vyhodnocení dat
+  dataCollectionPrice    String?    // Cena za sběr dat
+  transportationPrice    String?    // Cena dopravy
+  marginGroup            String?   // Maržová skupina A-B-C
+  multipleInspections    Boolean   @default(false) // Domluveno na více inspekcí
+  inspectionDeadline     DateTime? // Do kdy?
+  customContract         Boolean   @default(false) // Individuální smlouva
+  contractSignedDate     DateTime? // Podepsáno kdy?
+  readyForBilling        Boolean   @default(false) // Připraveno k fakturaci
+  
+  // Invoice details
+  firstInvoiceAmount     String?    // 1. zálohá faktura: částka
+  firstInvoiceDate       DateTime? // Kdy?
+  firstInvoiceDueDate    DateTime? // Splatnost?
+  firstInvoicePaid       Boolean   @default(false) // Zaplaceno?
+  secondInvoiceAmount    String?    // 2. zálohá faktura: částka
+  secondInvoiceDate      DateTime? // Kdy?
+  secondInvoiceDueDate   DateTime? // Splatnost?
+  secondInvoicePaid      Boolean   @default(false) // Zaplaceno?
+  finalInvoiceAmount     String?    // finální faktura: částka
+  finalInvoiceDate       DateTime? // Kdy?
+  finalInvoiceDueDate    DateTime? // Splatnost?
+  finalInvoicePaid       Boolean   @default(false) // Zaplaceno?
+  totalPriceExVat        String?    // Celkem bez DPH
+  totalPriceIncVat       String?    // Celkem s DPH
+  
+  // Client documents
+  flightConsentSent      Boolean   @default(false) // Souhlas s létáním poslán
+  flightConsentSentDate  DateTime? // Kdy poslán?
+  flightConsentSigned    Boolean   @default(false) // Souhlas podepsán
+  flightConsentSignedDate DateTime? // Kdy podepsán?
+  fveDrawingsReceived    Boolean   @default(false) // Výkresy FVE doručeny
+  fveDrawingsReceivedDate DateTime? // Kdy doručeny?
+  
+  // Flight permissions
+  permissionRequired     Boolean   @default(false) // Je nutné žádat o OKL?
+  permissionRequested    Boolean   @default(false) // Žádost poslána?
+  permissionRequestedDate DateTime? // Kdy poslána?
+  permissionRequestNumber String?   // Číslo žádosti
+  permissionStatus       String?   // Status
+  permissionValidUntil   DateTime? // Platnost do?
+  
+  // Pilot assignment
+  assignedToPilot        Boolean   @default(false) // Předáno pilotovi?
+  pilotName              String?   // Jméno pilota
+  pilotAssignedDate      DateTime? // Kdy předáno?
+  expectedFlightDate     DateTime? // Předpokládané datum letu
+  
+  // Data collection
+  photosTaken            Boolean   @default(false) // Nafoceno?
+  photosDate             DateTime? // Kdy nafoceno?
+  photosTime             String?   // Čas focení
+  panelTemperature       String?    // Teplota panelu
+  irradiance             String?   // Osvit
+  weather                String?   // Počasí
+  windSpeed              String?    // Vítr m/s
+  dataUploaded           Boolean   @default(false) // Upload?
+  
+  // Analysis
+  analysisStarted        Boolean   @default(false) // Zahájen proces analýzy?
+  analysisStartDate      DateTime? // Kdy zahájena?
+  analysisCompleted      Boolean   @default(false) // Analyzováno?
+  analysisCompletedDate  DateTime? // Kdy dokončeno?
+  reportCreated          Boolean   @default(false) // Vytvořen report?
+  reportSent             Boolean   @default(false) // Odesláno klientovi?
+  reportSentDate         DateTime? // Kdy odesláno?
+  
+  // Customer feedback
+  feedbackReceived       Boolean   @default(false) // Zpětná vazba od klienta?
+  feedbackContent        String?   // Jaká?
+  
+  // Standard fields
+  status                 String    @default("new")
+  notes                  String?
+  clientType             String    @default("fve")
+  salesRepId             String?
+  salesRep               User?     @relation(fields: [salesRepId], references: [id])
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([salesRepId])
+}
+
+// Drone Sales model
+model DroneSale {
+  id                Int       @id @default(autoincrement())
+  ico               String?
+  companyName       String
+  contactPerson     String?
+  phone             String?
+  email             String?
+  address           String?
+  fveName           String?
+  status            String    @default("new")
+  notes             String?
+  distanceKm        String?
+  marginGroup       String?
+  
+  // Relationships
+  salesRepId        String?
+  salesRep          User?     @relation(fields: [salesRepId], references: [id])
+  
+  // Metadata
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([salesRepId])
+}
+
+// Log model for activity tracking
+model Log {
+  id        Int      @id @default(autoincrement())
+  action    String
+  userId    String
+  user      User?    @relation(fields: [userId], references: [id])
+  message   String
+  entityType String?
+  entityId  String?
+  level     String   @default("info") // info, warning, error
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+}
+
+// Role Permission model for managing user permissions
 model RolePermission {
-  id         String  @id @default(cuid())
-  role       String
-  permission String
-  allowed    Boolean @default(false)
+  id          Int      @id @default(autoincrement())
+  role        String   
+  permission  String   
+  allowed     Boolean  @default(true)  // Add this field
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([role, permission])
-}
-
-model Client {
-  id                  Int     @id @default(autoincrement())
-  ico                 String  @unique
-  companyName         String
-  fveName             String?
-  fveAddress          String?
-  distanceKm          Float?
-  installedPower      Float?
-  contactPerson       String?
-  phone               String?
-  email               String?
-  salesRepId          String?
-  salesRep            User?   @relation("UserClients", fields: [salesRepId], references: [id])
-  marketingBan        Boolean?
-  offerSent           Boolean?
-  offerSentTo         String?
-  offerSentDate       DateTime?
-  offerApproved       Boolean?
-  offerApprovedDate   DateTime?
-  offerRejectionReason String?
-  totalPriceExVat     Float?
-  analysisPrice       Float?
-  dataCollectionPrice Float?
-  transportPrice      Float?
-  marginGroup         String?
-  multipleInspections Boolean?
-  inspectionDeadline  DateTime?
-  customContract      Boolean?
-  contractSignedDate  DateTime?
-  readyForBilling     Boolean?
-  firstInvoiceAmount  Float?
-  firstInvoiceDate    DateTime?
-  firstInvoiceDueDate DateTime?
-  firstInvoicePaid    Boolean?
-  secondInvoiceAmount Float?
-  secondInvoiceDate   DateTime?
-  secondInvoiceDueDate DateTime?
-  secondInvoicePaid   Boolean?
-  finalInvoiceAmount  Float?
-  finalInvoiceDate    DateTime?
-  finalInvoiceDueDate DateTime?
-  finalInvoicePaid    Boolean?
-  totalPriceIncVat    Float?
-  flightConsentSent   Boolean?
-  flightConsentSentDate DateTime?
-  flightConsentSigned Boolean?
-  flightConsentSignedDate DateTime?
-  fveDrawingsReceived Boolean?
-  fveDrawingsReceivedDate DateTime?
-  permissionRequired  Boolean?
-  permissionRequested Boolean?
-  permissionRequestedDate DateTime?
-  permissionRequestNumber String?
-  permissionStatus    String?
-  permissionValidUntil DateTime?
-  pilotAssigned       Boolean?
-  pilotName           String?
-  pilotAssignedDate   DateTime?
-  expectedFlightDate  DateTime?
-  photosTaken         Boolean?
-  photosDate          DateTime?
-  photosTime          String?
-  panelTemperature    Float?
-  illumination        Float?
-  photosUploaded      Boolean?
-  analysisStarted     Boolean?
-  analysisStartedDate DateTime?
-  analysisCompleted   Boolean?
-  analysisCompletedDate DateTime?
-  reportCreated       Boolean?
-  reportSent          Boolean?
-  reportSentDate      DateTime?
-  feedbackReceived    Boolean?
-  feedbackContent     String?
-  status              String
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-model Log {
-  id        String   @id @default(cuid())
-  action    String
-  details   String
-  entity    String
-  entityId  String
-  severity  String   @default("info")
-  userId    String
-  user      User     @relation("UserLogs", fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

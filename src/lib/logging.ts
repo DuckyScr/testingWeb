@@ -19,7 +19,7 @@ export async function createLog(
   try {
     // First verify the user exists
     const userExists = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: String(userId) }, // Convert userId to string
       select: { id: true }
     });
 
@@ -31,11 +31,11 @@ export async function createLog(
     return await prisma.log.create({
       data: {
         action,
-        userId,
-        details,
-        entity,
-        entityId,
-        severity
+        userId: String(userId), // Ensure userId is a string
+        message: details,
+        entityType: entity,
+        entityId: String(entityId), // Ensure entityId is a string
+        level: severity
       }
     });
   } catch (error) {

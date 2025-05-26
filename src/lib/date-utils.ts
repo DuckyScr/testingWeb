@@ -11,19 +11,36 @@ export function toPrismaDate(date: string | Date | null | undefined): Date | nul
   if (!date) return null;
   
   try {
-    // If it's already a Date object
     if (date instanceof Date) {
-      return isNaN(date.getTime()) ? null : date;
+      const year = date.getFullYear();
+      if (year < 1900 || year > 2100) {
+        console.warn(`Date validation: Year ${year} is outside reasonable range`);
+        return null;
+      }
+      return isNaN(date.getTime()) ? null : new Date(date.toISOString());
     }
     
-    // If it's a string in YYYY-MM-DD format (without time)
     if (typeof date === 'string' && date.length === 10 && date.includes('-')) {
+      const parts = date.split('-');
+      const year = parseInt(parts[0], 10);
+      if (year < 1900 || year > 2100) {
+        console.warn(`Date validation: Year ${year} is outside reasonable range`);
+        return null;
+      }
       return new Date(`${date}T00:00:00.000Z`);
     }
     
-    // Otherwise try to parse it as a regular date
     const parsed = new Date(date);
-    return isNaN(parsed.getTime()) ? null : parsed;
+    if (!isNaN(parsed.getTime())) {
+      const year = parsed.getFullYear();
+      if (year < 1900 || year > 2100) {
+        console.warn(`Date validation: Year ${year} is outside reasonable range`);
+        return null;
+      }
+      return new Date(parsed.toISOString());
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error converting date:', error);
     return null;

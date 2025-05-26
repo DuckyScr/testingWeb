@@ -154,11 +154,11 @@ export default function AdminPage() {
         },
         body: JSON.stringify({ role: newRole }),
       });
-
+  
       if (!response.ok) {
         throw new Error("Failed to update user role");
       }
-
+  
       toast.success("User role updated successfully");
       // Refresh users list
       const updatedUsers = await fetch("/api/admin/users").then(res => res.json());
@@ -301,10 +301,12 @@ export default function AdminPage() {
                 {Object.values(ROLES).map((role) => (
                   <TableCell key={`${role}-${permission}`}>
                     <Switch
-                      checked={rolePermissions[permission]?.[role] || false}
+                      checked={rolePermissions[role]?.[permission] || false}
                       onCheckedChange={(checked) =>
                         updatePermission(role, permission, checked)
                       }
+                      disabled={loading}
+                      aria-label={`${permission} permission for ${role} role`}
                     />
                   </TableCell>
                 ))}

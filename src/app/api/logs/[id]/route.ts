@@ -7,13 +7,17 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
+    // Check if user is authenticated and has admin role
     const authToken = (await cookies()).get('auth-token')?.value;
     
     if (!authToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
     
     let decodedToken;
@@ -23,6 +27,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     
+    // Check if user has admin role
     if (decodedToken.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Forbidden - Admin access required" },
@@ -33,7 +38,9 @@ export async function GET(
     const { id } = await params;
     
     const log = await prisma.log.findUnique({
-      where: { id },
+      where: { 
+        id: parseInt(id) // Convert string ID to integer
+      },
       include: {
         user: {
           select: {
@@ -44,19 +51,22 @@ export async function GET(
     });
 
     if (!log) {
-      return NextResponse.json({ error: "Log not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Log not found" },
+        { status: 404 }
+      );
     }
 
-    // Format the log for frontend consumption
+    // Format log for frontend
     const formattedLog = {
       id: log.id,
       timestamp: log.createdAt.toISOString(),
       action: log.action,
       user: log.user?.email || 'system',
-      details: log.details,
-      entity: log.entity,
       entityId: log.entityId,
-      severity: log.severity
+      entityType: log.entityType,
+      level: log.level,
+      message: log.message
     };
 
     return NextResponse.json(formattedLog);

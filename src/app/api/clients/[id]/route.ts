@@ -6,7 +6,7 @@ import { getUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
 // Define date fields that need processing
-const DATE_FIELDS = [
+const FVE_DATE_FIELDS = [
   'offerSentDate', 'offerApprovedDate', 'inspectionDeadline', 
   'contractSignedDate', 'firstInvoiceDate', 'firstInvoiceDueDate', 
   'secondInvoiceDate', 'secondInvoiceDueDate', 'finalInvoiceDate', 
@@ -22,8 +22,6 @@ export async function PUT(
 ) {
   try {
     const id = (await params).id;
-    
-    // Get current user
     const user = await getUser(request);
     if (!user) {
       return NextResponse.json(
@@ -31,82 +29,42 @@ export async function PUT(
         { status: 401 }
       );
     }
-    
-    // Get request body
+
     const body = await request.json();
-    
-    // Check specific permissions based on what's being updated
-    if (body.companyName !== undefined) {
-      const hasEditNamePermission = await hasPermission(user.role, "edit_client_name");
-      if (!hasEditNamePermission) {
-        return NextResponse.json(
-          { message: "You don't have permission to edit client name" },
-          { status: 403 }
-        );
-      }
-    }
-    
-    // Check for contact information updates
-    if (body.contactPerson !== undefined || body.phone !== undefined || body.email !== undefined) {
-      const hasEditContactPermission = await hasPermission(user.role, "edit_client_contact");
-      if (!hasEditContactPermission) {
-        return NextResponse.json(
-          { message: "You don't have permission to edit client contact information" },
-          { status: 403 }
-        );
-      }
-    }
-    
-    // Check for address updates
-    if (body.fveAddress !== undefined) {
-      const hasEditAddressPermission = await hasPermission(user.role, "edit_client_address");
-      if (!hasEditAddressPermission) {
-        return NextResponse.json(
-          { message: "You don't have permission to edit client address" },
-          { status: 403 }
-        );
-      }
-    }
-    
-    // Check for status updates
-    if (body.status !== undefined) {
-      const hasEditStatusPermission = await hasPermission(user.role, "edit_client_status");
-      if (!hasEditStatusPermission) {
-        return NextResponse.json(
-          { message: "You don't have permission to edit client status" },
-          { status: 403 }
-        );
-      }
-    }
-    
+
     // Remove the id field from the data object
     if ('id' in body) {
       delete body.id;
     }
-    
-    // Handle salesRepId separately for the relation
+
     let salesRepId;
     if ('salesRepId' in body) {
       salesRepId = body.salesRepId;
       delete body.salesRepId;
     }
-    
-    // Remove salesRep if it's in the body (it should be in include, not data)
+
     if ('salesRep' in body) {
       delete body.salesRep;
     }
-    
+
     // Process dates to ensure they're in the correct format for Prisma
-    const processedData = processDates(body, DATE_FIELDS);
-    
-    // Add the salesRep connect if salesRepId was provided
+    let processedData = processDates(body, FVE_DATE_FIELDS);
+
     if (salesRepId) {
       processedData.salesRep = {
         connect: { id: salesRepId }
       };
     }
-    
-    // Update client
+
+    if (body.categorizedData) {
+      Object.keys(body.categorizedData).forEach(category => {
+        Object.keys(body.categorizedData[category]).forEach(field => {
+          processedData[field] = body.categorizedData[category][field];
+        });
+      });
+      delete processedData.categorizedData;
+    }
+
     const updatedClient = await prisma.client.update({
       where: { id: Number(id) },
       data: processedData,
@@ -119,17 +77,16 @@ export async function PUT(
         }
       }
     });
-    
-    // Log the update
+
     await createLog(
       "UPDATE_CLIENT",
-      user.id,
+      String(user.id),
       `Updated client: ${updatedClient.companyName}`,
       "Client",
       id,
       "info"
     );
-    
+
     return NextResponse.json(updatedClient);
   } catch (error) {
     console.error("Error updating client:", error);
@@ -179,7 +136,7 @@ export async function GET(
     // Log the access
     await createLog(
       "GET_CLIENT",
-      user.id,
+      String(user.id),
       `Viewed client: ${client.companyName}`,
       "Client",
       id,
@@ -244,7 +201,7 @@ export async function DELETE(
     // Log the deletion
     await createLog(
       "DELETE_CLIENT",
-      user.id,
+      String(user.id),
       `Deleted client: ${client.companyName}`,
       "Client",
       id,

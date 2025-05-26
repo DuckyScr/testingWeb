@@ -30,7 +30,9 @@ export async function DELETE(
     
     // First delete all logs associated with this user
     await prisma.log.deleteMany({
-      where: { userId: id },
+      where: { userId: id
+        
+       },
     });
     
     // Then delete the user

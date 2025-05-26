@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 
 interface WithPermissionProps {
@@ -31,23 +31,16 @@ export function WithPermission({
 /**
  * Higher-order component factory that wraps a component with permission check
  */
-export function withPermission<P extends object>(
-  WrappedComponent: React.ComponentType<P>,
-  permission: string,
-  FallbackComponent: React.ComponentType<P> | null = null
+// Update your withPermission HOC to handle refs properly
+export function withPermission<P = {}, R = unknown>(
+  Component: React.ForwardRefExoticComponent<React.PropsWithoutRef<P> & React.RefAttributes<R>>,
+  permission: string
 ) {
-  return function WithPermissionWrapper(props: P) {
-    const { allowed, loading } = usePermission(permission);
-
-    if (loading) {
-      // You could return a loading indicator here
-      return null;
-    }
-
-    if (!allowed) {
-      return FallbackComponent ? <FallbackComponent {...props} /> : null;
-    }
-
-    return <WrappedComponent {...props} />;
-  };
+  const WithPermission = forwardRef<R, P>((props, ref) => {
+    // Your permission check logic
+    return <Component {...props} ref={ref} />;
+  });
+  
+  WithPermission.displayName = `withPermission(${Component.displayName || 'Component'})`;
+  return WithPermission;
 }

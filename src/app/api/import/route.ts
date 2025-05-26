@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       
       try {
         const client = await prisma.client.upsert({
-          where: { ico: record["IČO"] },
+          where: { id: parseInt(record["IČO"]) },
           update: {
             // Basic information
             companyName: record["Klient - jméno"],
@@ -182,9 +182,9 @@ export async function POST(request: NextRequest) {
             
             // Pricing
             totalPriceExVat: parseFloat(record["Cena uvedená na nabídce bez DPH?"]),
-            analysisPrice: parseFloat(record["Z toho cena za vyhodnocení dat bez DPH?"]),
+            dataAnalysisPrice: parseFloat(record["Z toho cena za vyhodnocení dat bez DPH?"]),
             dataCollectionPrice: parseFloat(record["Z toho cena za sběr dat bez DPH?"]),
-            transportPrice: parseFloat(record["Samostatně cena dopravy - 15 kč/km - celkem bez DPH?"]),
+            transportationPrice: parseFloat(record["Samostatně cena dopravy - 15 kč/km - celkem bez DPH?"]),
             marginGroup: record["Maržová skupina A-B-C"] || null,
             
             // Multiple inspections
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
             permissionValidUntil: parseDate(record["Platnost do?"]),
             
             // Pilot assignment
-            pilotAssigned: parseBoolean(record["Předáno pilotovi? ANO/NE"]),
+            assignedToPilot: parseBoolean(record["Předáno pilotovi? ANO/NE"]),
             pilotName: record["Jméno pilota"] || null,
             pilotAssignedDate: parseDate(record["Kdy?_9"]),
             expectedFlightDate: parseDate(record["Očekávaný termín letu?"]),
@@ -248,12 +248,12 @@ export async function POST(request: NextRequest) {
             photosDate: parseDate(record["Kdy?_10"]),
             photosTime: record["Čas?"] || null,
             panelTemperature: parseFloat(record["Teplota panelu?"]),
-            illumination: parseFloat(record["Osvit? Watt"]),
-            photosUploaded: parseBoolean(record["Upload? ANO/NE"]),
+            irradiance: record["Osvit? Watt"],
+            dataUploaded: parseBoolean(record["Upload? ANO/NE"]),
             
             // Analysis
             analysisStarted: parseBoolean(record["Zahájen proces analýzy? ANO/NE"]),
-            analysisStartedDate: parseDate(record["Kdy?_11"]),
+            analysisStartDate: parseDate(record["Kdy?_11"]),
             analysisCompleted: parseBoolean(record["Analyzováno?"]) || record["Analyzováno?"] === "Hotovo",
             analysisCompletedDate: parseDate(record["Kdy?_12"]),
             
@@ -301,9 +301,9 @@ export async function POST(request: NextRequest) {
             
             // Pricing
             totalPriceExVat: parseFloat(record["Cena uvedená na nabídce bez DPH?"]),
-            analysisPrice: parseFloat(record["Z toho cena za vyhodnocení dat bez DPH?"]),
+            dataAnalysisPrice: parseFloat(record["Z toho cena za vyhodnocení dat bez DPH?"]),
             dataCollectionPrice: parseFloat(record["Z toho cena za sběr dat bez DPH?"]),
-            transportPrice: parseFloat(record["Samostatně cena dopravy - 15 kč/km - celkem bez DPH?"]),
+            transportationPrice: parseFloat(record["Samostatně cena dopravy - 15 kč/km - celkem bez DPH?"]),
             marginGroup: record["Maržová skupina A-B-C"] || null,
             
             // Multiple inspections
@@ -357,7 +357,7 @@ export async function POST(request: NextRequest) {
             permissionValidUntil: parseDate(record["Platnost do?"]),
             
             // Pilot assignment
-            pilotAssigned: parseBoolean(record["Předáno pilotovi? ANO/NE"]),
+            assignedToPilot: parseBoolean(record["Předáno pilotovi? ANO/NE"]),
             pilotName: record["Jméno pilota"] || null,
             pilotAssignedDate: parseDate(record["Kdy?_9"]),
             expectedFlightDate: parseDate(record["Očekávaný termín letu?"]),
@@ -367,12 +367,12 @@ export async function POST(request: NextRequest) {
             photosDate: parseDate(record["Kdy?_10"]),
             photosTime: record["Čas?"] || null,
             panelTemperature: parseFloat(record["Teplota panelu?"]),
-            illumination: parseFloat(record["Osvit? Watt"]),
-            photosUploaded: parseBoolean(record["Upload? ANO/NE"]),
+            irradiance: record["Osvit? Watt"],
+            dataUploaded: parseBoolean(record["Upload? ANO/NE"]),
             
             // Analysis
             analysisStarted: parseBoolean(record["Zahájen proces analýzy? ANO/NE"]),
-            analysisStartedDate: parseDate(record["Kdy?_11"]),
+            analysisStartDate: parseDate(record["Kdy?_11"]),
             analysisCompleted: parseBoolean(record["Analyzováno?"]) || record["Analyzováno?"] === "Hotovo",
             analysisCompletedDate: parseDate(record["Kdy?_12"]),
             

@@ -53,10 +53,10 @@ export async function GET(request: NextRequest) {
       timestamp: log.createdAt.toISOString(),
       action: log.action,
       user: log.user?.email || 'system',
-      details: log.details,
-      entity: log.entity,
       entityId: log.entityId,
-      severity: log.severity
+      entityType: log.entityType,
+      level: log.level,
+      message: log.message
     }));
     
     return NextResponse.json(formattedLogs);

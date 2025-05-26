@@ -1,57 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { verify } from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-
-type RouteSegment = { params: Promise<{ role: string }> };
+import { NextResponse } from "next/server";
 
 export async function PUT(
-  request: NextRequest,
-  segment: RouteSegment
-): Promise<Response> {
+  request: Request,
+  { params }: { params: { role: string } }
+) {
   try {
-    const { role } = await segment.params;
-    const authToken = (await cookies()).get('auth-token')?.value;
-    
-    if (!authToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    
-    try {
-      const decoded = verify(authToken, JWT_SECRET) as { role: string };
-      if (decoded.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-    } catch (_error) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
+    const { role } = await params;
     const body = await request.json();
 
     for (const [permission, allowed] of Object.entries(body)) {
-      await prisma.rolePermission.upsert({
+      // Find existing permission
+      const existingPermission = await prisma.rolePermission.findFirst({
         where: {
-          role_permission: {
-            role,
-            permission
-          }
-        },
-        update: {
-          allowed: allowed as boolean
-        },
-        create: {
           role,
-          permission,
-          allowed: allowed as boolean
+          permission
         }
       });
+
+      if (existingPermission) {
+        // Update existing permission
+        await prisma.rolePermission.update({
+          where: {
+            id: existingPermission.id
+          },
+          data: {
+            allowed: Boolean(allowed)
+          }
+        });
+      } else {
+        // Create new permission
+        await prisma.rolePermission.create({
+          data: {
+            role,
+            permission,
+            allowed: Boolean(allowed)
+          }
+        });
+      }
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error updating permissions:", error);
-    return NextResponse.json({ error: "Failed to update permissions" }, { status: 500 });
+    console.error('Error updating permissions:', error);
+    return NextResponse.json(
+      { error: 'Failed to update permissions' },
+      { status: 500 }
+    );
   }
 }

@@ -117,12 +117,12 @@ export async function POST(request: Request) {
         ico: record[1] || "",
         fveName: record[2] || null,
         fveAddress: record[3] || null,
-        distanceKm: parseNumber(record[4]),
-        installedPower: parseNumber(record[5]),
+        distanceKm: record[4],
+        installedPower: record[5] || null,
         contactPerson: record[6] || null,
         phone: record[7] || null,
         email: record[8] || null,
-        salesRepId: adminUser.id, // Keep as string, don't convert to number
+        salesRepId: adminUser.id, // Changed back to salesRepId
       
         // Marketing and Offers
         marketingBan: toBool(record[10]),
@@ -132,10 +132,10 @@ export async function POST(request: Request) {
         offerApproved: toBool(record[14]),
         offerApprovedDate: parseDate(record[15]),
         offerRejectionReason: record[16] || null,
-        offerPrice: parseNumber(record[17]),
-        analysisPrice: parseNumber(record[18]),
-        dataCollectionPrice: parseNumber(record[19]),
-        transportPrice: parseNumber(record[20]),
+        offerPrice: record[17],
+        dataAnalysisPrice: record[18],
+        dataCollectionPrice: record[19],
+        transportationPrice: record[20],
         marginGroup: record[21] || null,
         multipleInspections: toBool(record[22]),
         inspectionDeadline: parseDate(record[23]),
@@ -187,7 +187,7 @@ export async function POST(request: Request) {
         photosTaken: toBool(record[57]),
         photosDate: parseDate(record[58]),
         photosTime: record[59] || null,
-        panelTemperature: parseNumber(record[60]),
+        panelTemperature: record[60],
         irradiance: record[61] || null,
         dataUploaded: toBool(record[62]),
         
@@ -211,13 +211,17 @@ export async function POST(request: Request) {
       if (!clientData.ico || !clientData.companyName) continue;
 
       try {
-        const existingClient = await prisma.client.findUnique({
-          where: { ico: clientData.ico },
+        const existingClient = await prisma.client.findFirst({
+          where: { 
+            ico: clientData.ico 
+          },
         });
 
         if (existingClient) {
           await prisma.client.update({
-            where: { ico: clientData.ico },
+            where: { 
+              id: existingClient.id  // Use the id field instead of ico
+            },
             data: {
               companyName: clientData.companyName,
               ico: clientData.ico,
@@ -228,9 +232,9 @@ export async function POST(request: Request) {
               contactPerson: clientData.contactPerson,
               phone: clientData.phone,
               email: clientData.email,
-              salesRepId: currentUser.id,
+              salesRepId: currentUser.id, // Changed back to salesRepId
               marketingBan: clientData.marketingBan,
-              offerSent: clientData.offerSent,
+              offerSent: clientData.offerSent == true ? true : false,
               offerSentTo: clientData.offerSentTo,
               offerSentDate: isValidPrismaDate(clientData.offerSentDate),
               offerApproved: clientData.offerApproved,
@@ -251,7 +255,7 @@ export async function POST(request: Request) {
               pilotAssignedDate: isValidPrismaDate(clientData.pilotAssignedDate),
               expectedFlightDate: isValidPrismaDate(clientData.expectedFlightDate),
               photosDate: isValidPrismaDate(clientData.photosDate),
-              analysisStartedDate: isValidPrismaDate(clientData.analysisStartDate),
+              analysisStartDate: isValidPrismaDate(clientData.analysisStartDate),
               analysisCompletedDate: isValidPrismaDate(clientData.analysisCompletedDate),
               reportSentDate: isValidPrismaDate(clientData.reportSentDate),
               feedbackReceived: clientData.feedbackReceived,
@@ -292,46 +296,47 @@ export async function POST(request: Request) {
                 contactPerson: clientData.contactPerson?.trim(),
                 phone: clientData.phone?.trim(),
                 email: clientData.email?.trim() || null,
-                salesRepId: adminUser.id, // Keep as string, don't convert to number
+                salesRepId: adminUser.id, // Changed back to salesRepId
+              
                 // Removed salesRep field since it doesn't exist in the schema
-                marketingBan: clientData.marketingBan === true || clientData.marketingBan === false ? clientData.marketingBan : null,
-                offerSent: clientData.offerSent === true || clientData.offerSent === false ? clientData.offerSent : null,
+                marketingBan: clientData.marketingBan === true ? true : false,
+                offerSent: clientData.offerSent === true? true : false,
                 offerSentTo: clientData.offerSentTo,
                 offerSentDate: isValidDate(clientData.offerSentDate) ? clientData.offerSentDate : null,
-                offerApproved: clientData.offerApproved,
+                offerApproved: clientData.offerApproved == true? true : false, 
                 offerApprovedDate: isValidDate(clientData.offerApprovedDate) ? clientData.offerApprovedDate : null,
                 offerRejectionReason: clientData.offerRejectionReason,
                 totalPriceExVat: clientData.totalPriceExVat,
-                analysisPrice: clientData.analysisPrice,
+                dataAnalysisPrice: clientData.dataAnalysisPrice,
                 dataCollectionPrice: clientData.dataCollectionPrice,
-                transportPrice: clientData.transportPrice,
+                transportationPrice: clientData.transportationPrice,
                 marginGroup: clientData.marginGroup,
-                multipleInspections: clientData.multipleInspections,
+                multipleInspections: clientData.multipleInspections === true? true : false,
                 inspectionDeadline: isValidDate(clientData.inspectionDeadline) ? clientData.inspectionDeadline : null,
-                customContract: clientData.customContract,
+                customContract: clientData.customContract === true? true : false,
                 contractSignedDate: isValidDate(clientData.contractSignedDate) ? clientData.contractSignedDate : null,
-                readyForBilling: clientData.readyForBilling,
+                readyForBilling: clientData.readyForBilling === true? true : false,
                 firstInvoiceAmount: clientData.firstInvoiceAmount,
                 firstInvoiceDate: isValidDate(clientData.firstInvoiceDate) ? clientData.firstInvoiceDate : null,
                 firstInvoiceDueDate: isValidDate(clientData.firstInvoiceDueDate) ? clientData.firstInvoiceDueDate : null,
-                firstInvoicePaid: clientData.firstInvoicePaid,
+                firstInvoicePaid: clientData.firstInvoicePaid === true? true : false,
                 secondInvoiceAmount: clientData.secondInvoiceAmount,
                 secondInvoiceDate: isValidDate(clientData.secondInvoiceDate) ? clientData.secondInvoiceDate : null,
                 secondInvoiceDueDate: isValidDate(clientData.secondInvoiceDueDate) ? clientData.secondInvoiceDueDate : null,
-                secondInvoicePaid: clientData.secondInvoicePaid,
+                secondInvoicePaid: clientData.secondInvoicePaid === true? true : false, 
                 finalInvoiceAmount: clientData.finalInvoiceAmount,
                 finalInvoiceDate: isValidDate(clientData.finalInvoiceDate) ? clientData.finalInvoiceDate : null,
                 finalInvoiceDueDate: isValidDate(clientData.finalInvoiceDueDate) ? clientData.finalInvoiceDueDate : null,
-                finalInvoicePaid: clientData.finalInvoicePaid,
+                finalInvoicePaid: clientData.finalInvoicePaid === true? true : false,
                 totalPriceIncVat: clientData.totalPriceIncVat,
-                flightConsentSent: clientData.flightConsentSent,
+                flightConsentSent: clientData.flightConsentSent === true? true : false,
                 flightConsentSentDate: isValidDate(clientData.flightConsentSentDate) ? clientData.flightConsentSentDate : null,
-                flightConsentSigned: clientData.flightConsentSigned,
+                flightConsentSigned: clientData.flightConsentSigned === true? true : false,
                 flightConsentSignedDate: isValidDate(clientData.flightConsentSignedDate) ? clientData.flightConsentSignedDate : null,
-                fveDrawingsReceived: clientData.fveDrawingsReceived,
+                fveDrawingsReceived: clientData.fveDrawingsReceived === true? true : false,
                 fveDrawingsReceivedDate: isValidDate(clientData.fveDrawingsReceivedDate) ? clientData.fveDrawingsReceivedDate : null,
-                permissionRequired: clientData.permissionRequired,
-                permissionRequested: clientData.permissionRequested,
+                permissionRequired: clientData.permissionRequired === true? true : false,
+                permissionRequested: clientData.permissionRequested === true? true : false,
                 permissionRequestedDate: isValidDate(clientData.permissionRequestedDate) ? clientData.permissionRequestedDate : null,
                 permissionRequestNumber: clientData.permissionRequestNumber,
                 permissionStatus: clientData.permissionStatus,
@@ -340,20 +345,20 @@ export async function POST(request: Request) {
                 pilotName: clientData.pilotName,
                 pilotAssignedDate: isValidDate(clientData.pilotAssignedDate) ? clientData.pilotAssignedDate : null,
                 expectedFlightDate: isValidDate(clientData.expectedFlightDate) ? clientData.expectedFlightDate : null,
-                photosTaken: clientData.photosTaken,
+                photosTaken: clientData.photosTaken === true? true : false,
                 photosDate: isValidDate(clientData.photosDate) ? clientData.photosDate : null,
                 photosTime: typeof clientData.photosTime === 'string' && clientData.photosTime.includes('.') ? null : clientData.photosTime,
                 panelTemperature: clientData.panelTemperature,
                 irradiance: clientData.irradiance ? parseFloat(String(clientData.irradiance).replace(/"/g, '')) : null,
-                dataUploaded: clientData.dataUploaded,
-                analysisStarted: clientData.analysisStarted,
+                dataUploaded: clientData.dataUploaded === true? true : false,
+                analysisStarted: clientData.analysisStarted === true? true : false,
                 analysisStartDate: isValidDate(clientData.analysisStartDate) ? clientData.analysisStartDate : null,
-                analysisCompleted: clientData.analysisCompleted,
+                analysisCompleted: clientData.analysisCompleted === true? true : false,
                 analysisCompletedDate: isValidDate(clientData.analysisCompletedDate) ? clientData.analysisCompletedDate : null,
-                reportCreated: clientData.reportCreated,
-                reportSent: clientData.reportSent,
+                reportCreated: clientData.reportCreated === true? true : false,
+                reportSent: clientData.reportSent === true? true : false,
                 reportSentDate: isValidDate(clientData.reportSentDate) ? clientData.reportSentDate : null,
-                feedbackReceived: clientData.feedbackReceived,
+                feedbackReceived: clientData.feedbackReceived === true? true : false,
                 feedbackContent: clientData.feedbackContent,
                 status: "Importováno"
               };
@@ -362,7 +367,7 @@ export async function POST(request: Request) {
               // This is important to handle fields like 'offerPrice' that might be in your CSV but not in your schema
               const schemaFields = [
                 'companyName', 'ico', 'fveName', 'fveAddress', 'distanceKm', 'installedPower', 
-                'contactPerson', 'phone', 'email', 'salesRepId', 'salesRep', 'marketingBan', 
+                'contactPerson', 'phone', 'email', 'salesRepId', 'marketingBan', 
                 'offerSent', 'offerSentTo', 'offerSentDate', 'offerApproved', 'offerApprovedDate', 
                 'offerRejectionReason', 'totalPriceExVat', 'analysisPrice', 'dataCollectionPrice', 
                 'transportPrice', 'marginGroup', 'multipleInspections', 'inspectionDeadline', 
@@ -386,11 +391,25 @@ export async function POST(request: Request) {
                 }
               }
             
+              // Before creating the client
+              // Set the current user's ID as the salesRepId
+              const salesRepId = currentUser.id;
+              
+              // Make sure validData doesn't contain salesRepId
+              if (validData.salesRepId) {
+                delete validData.salesRepId;
+              }
+              
               const newClient = await prisma.client.create({
                 data: {
                   ico: clientData.ico,
                   companyName: clientData.companyName,
                   status: clientData.status,
+                  marketingBan: clientData.marketingBan,
+                  offerSent: clientData.offerSent,
+                  offerApproved: clientData.offerApproved,
+                  dataAnalysisPrice: clientData.dataAnalysisPrice,
+
                   ...validData
                 }
               });
@@ -457,7 +476,8 @@ function toBool(value: string | null | undefined): boolean | null {
 function parseCSV(text: string) {
   return parse(text, {
     skip_empty_lines: true,
-    trim: true
+    trim: true,
+    delimiter: ';'  // Add this line to specify the semicolon delimiter
   });
 }
 

@@ -115,12 +115,11 @@ export async function POST(req: NextRequest) {
     const client = await prisma.client.create({
       data: {
         companyName: data.companyName,
-        ico: data.ico,
         contactPerson: data.contactPerson,
         phone: data.phone,
         email: data.email,
         fveAddress: data.fveAddress,
-        salesRepId: dbUser.id,  // This creates the relationship
+        salesRepId: dbUser.id,
         status: "Nový",
       },
     });
@@ -223,11 +222,12 @@ export async function PUT(req: NextRequest) {
       where: { id: data.id },
       data: {
         companyName: data.companyName,
-        ico: data.ico,
         contactPerson: data.contactPerson,
         phone: data.phone,
         email: data.email,
         fveAddress: data.fveAddress,
+        salesRepId: user.id,
+        status: "Nový",
       },
     });
     
