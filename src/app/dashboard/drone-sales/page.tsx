@@ -47,7 +47,7 @@ const CATEGORIES = [
 // Map for display names
 const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
   "základní_informace": "Základní informace",
-  "kontakty": "Kontakty",
+  "kontakty": "Kontakty"
 };
 // Define fields for each category
 const CATEGORY_FIELDS: Record<string, { field: string, label: string, type?: string }[]> = {
@@ -237,7 +237,7 @@ export default function DroneSalesPage() {
       ) : (
         <>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-5 mb-4">
+            <TabsList className="grid grid-cols-2 mb-4">
               {CATEGORIES.map((category) => (
                 <TabsTrigger key={category} value={category}>
                   {CATEGORY_DISPLAY_NAMES[category]}
