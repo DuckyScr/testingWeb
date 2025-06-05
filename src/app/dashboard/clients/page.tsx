@@ -294,7 +294,10 @@ export default function ClientsPage() {
   };
 
   // Helper function to format field values
-  const formatValue = (value: any): string => {
+  const formatValue = (value: any, field: string): string => {
+    if (field === 'salesRep') {
+      return typeof value === 'object' && value?.name ? value.name : 'Nepřiřazeno';
+    }
     if (value === true) return "Ano";
     if (value === false) return "Ne";
     if (value === null || value === undefined) return "—";
@@ -371,7 +374,7 @@ export default function ClientsPage() {
             </TabsList>
             
             {CATEGORIES.map((category) => (
-              <TabsContent key={category} value={category}>
+              <TabsContent key={`tab-content-${category}`} value={category}>
                 <Card>
                   <CardHeader>
                     <CardTitle>{CATEGORY_DISPLAY_NAMES[category]}</CardTitle>
@@ -381,24 +384,24 @@ export default function ClientsPage() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Klient</TableHead>
+                            <TableHead key="client-name">Klient</TableHead>
                             {CATEGORY_FIELDS[category].map((field) => (
-                              <TableHead key={field.field}>{field.label}</TableHead>
+                              <TableHead key={`${category}-${field.field}`}>{field.label}</TableHead>
                             ))}
-                            <TableHead>Akce</TableHead>
+                            <TableHead key="actions">Akce</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {clients.length > 0 ? (
                             clients.map((client) => (
-                              <TableRow key={client.id}>
-                                <TableCell className="font-medium">{client.companyName}</TableCell>
+                              <TableRow key={`${category}-${client.id}`}>
+                                <TableCell key={`${category}-${client.id}-name`} className="font-medium">{client.companyName}</TableCell>
                                 {CATEGORY_FIELDS[category].map((field) => (
-                                  <TableCell key={field.field}>
-                                    {formatValue(client[field.field as keyof Client])}
+                                  <TableCell key={`${category}-${client.id}-${field.field}`}>
+                                    {formatValue(client[field.field as keyof Client], field.field)}
                                   </TableCell>
                                 ))}
-                                <TableCell>
+                                <TableCell key={`${category}-${client.id}-actions`}>
                                   <Link href={`/dashboard/clients/${client.id}`}>
                                     <Button variant="ghost" size="sm">
                                       <ExternalLink className="h-4 w-4" />
@@ -408,7 +411,7 @@ export default function ClientsPage() {
                               </TableRow>
                             ))
                           ) : (
-                            <TableRow>
+                            <TableRow key={`${category}-empty`}>
                               <TableCell colSpan={CATEGORY_FIELDS[category].length + 2} className="text-center py-4">
                                 Žádní klienti nebyli nalezeni
                               </TableCell>

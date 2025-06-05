@@ -131,12 +131,17 @@ model Client {
   status                 String    @default("new")
   notes                  String?
   clientType             String    @default("fve")
-  salesRepId             String?
-  salesRep               User?     @relation(fields: [salesRepId], references: [id])
+  salesRep               String?   // Sales rep name
+  salesRepEmail          String?   // New field for sales rep email
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  @@index([salesRepId])
+  // Remove the relation and index
+  // salesRepId             String?
+  // salesRep               User?     @relation(fields: [salesRepId], references: [id])
+  // @@index([salesRepId])
+
+  User User[]
 }
 
 // Drone Sales model

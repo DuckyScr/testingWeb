@@ -189,10 +189,13 @@ export const BaseClientsTable = forwardRef<{ fetchClients: () => Promise<void> }
   }, []);
 
   // Filter clients based on search term
-  const filteredClients = clientsList.filter((client) => // Update this line
+  const filteredClients = clientsList.filter((client) =>
     Object.entries(client).some(
       ([key, value]) => {
-        // ... existing code ...
+        if (!searchTerm) return true;
+        if (value === null || value === undefined) return false;
+        if (typeof value === 'object') return false;
+        return String(value).toLowerCase().includes(searchTerm.toLowerCase());
       }
     )
   );

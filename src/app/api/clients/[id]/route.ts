@@ -31,51 +31,26 @@ export async function PUT(
     }
 
     const body = await request.json();
-
-    // Remove the id field from the data object
-    if ('id' in body) {
-      delete body.id;
-    }
-
-    let salesRepId;
-    if ('salesRepId' in body) {
-      salesRepId = body.salesRepId;
-      delete body.salesRepId;
-    }
-
-    if ('salesRep' in body) {
-      delete body.salesRep;
+    // Handle salesRep and salesRepEmail
+    if ('salesRep' in body && typeof body.salesRep === 'object') {
+      // If salesRep is an object (from the old relation), extract the name and email
+      body.salesRep = body.salesRep.name || "";
+      body.salesRepEmail = body.salesRep.email || "";
     }
 
     // Process dates to ensure they're in the correct format for Prisma
     let processedData = processDates(body, FVE_DATE_FIELDS);
 
-    if (salesRepId) {
-      processedData.salesRep = {
-        connect: { id: salesRepId }
-      };
-    }
-
-    if (body.categorizedData) {
-      Object.keys(body.categorizedData).forEach(category => {
-        Object.keys(body.categorizedData[category]).forEach(field => {
-          processedData[field] = body.categorizedData[category][field];
-        });
-      });
-      delete processedData.categorizedData;
-    }
-
+    // Update the client using the id from the URL params
     const updatedClient = await prisma.client.update({
-      where: { id: Number(id) },
-      data: processedData,
-      include: {
-        salesRep: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
-      }
+      where: { 
+        id: Number(id) // Convert string id to number
+      },
+      data: {
+        ...processedData,
+        salesRep: body.salesRep,
+        salesRepEmail: body.salesRepEmail,
+      },
     });
 
     await createLog(
@@ -116,14 +91,11 @@ export async function GET(
     // Fetch client
     const client = await prisma.client.findUnique({
       where: { id: Number(id) },
-      include: {
-        salesRep: {
-          select: {
-            name: true,
-            email: true
-          }
+        select: {
+          salesRep: true,
+          salesRepEmail: true,
+          companyName: true,
         }
-      }
     });
     
     if (!client) {

@@ -197,10 +197,120 @@ const FIELD_DISPLAY_NAMES: Record<string, string> = {
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
-) { 
-  try { 
+) {
+  try {
+    // Await params before accessing
     const { id } = await params;
     
+    if (!id) {
+      return NextResponse.json({ message: "Invalid client ID" }, { status: 400 });
+    }
+
+    const clientId = Number(id);
+    if (isNaN(clientId)) {
+      return NextResponse.json({ message: "Invalid client ID format" }, { status: 400 });
+    }
+
+    // Fetch client
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        companyName: true,
+        ico: true,
+        parentCompany: true,
+        parentCompanyIco: true,
+        dataBox: true,
+        fveName: true,
+        installedPower: true,
+        fveAddress: true,
+        gpsCoordinates: true,
+        distanceKm: true,
+        serviceCompany: true,
+        serviceCompanyIco: true,
+        contactPerson: true,
+        phone: true,
+        email: true,
+        contactRole: true,
+        marketingBan: true,
+        offerSent: true,
+        offerSentTo: true,
+        offerSentDate: true,
+        offerApproved: true,
+        offerApprovedDate: true,
+        offerRejectionReason: true,
+        priceExVat: true,
+        dataAnalysisPrice: true,
+        dataCollectionPrice: true,
+        transportationPrice: true,
+        marginGroup: true,
+        multipleInspections: true,
+        inspectionDeadline: true,
+        customContract: true,
+        contractSignedDate: true,
+        readyForBilling: true,
+        firstInvoiceAmount: true,
+        firstInvoiceDate: true,
+        firstInvoiceDueDate: true,
+        firstInvoicePaid: true,
+        secondInvoiceAmount: true,
+        secondInvoiceDate: true,
+        secondInvoiceDueDate: true,
+        secondInvoicePaid: true,
+        finalInvoiceAmount: true,
+        finalInvoiceDate: true,
+        finalInvoiceDueDate: true,
+        finalInvoicePaid: true,
+        totalPriceExVat: true,
+        totalPriceIncVat: true,
+        flightConsentSent: true,
+        flightConsentSentDate: true,
+        flightConsentSigned: true,
+        flightConsentSignedDate: true,
+        fveDrawingsReceived: true,
+        fveDrawingsReceivedDate: true,
+        permissionRequired: true,
+        permissionRequested: true,
+        permissionRequestedDate: true,
+        permissionRequestNumber: true,
+        permissionStatus: true,
+        permissionValidUntil: true,
+        assignedToPilot: true,
+        pilotName: true,
+        pilotAssignedDate: true,
+        expectedFlightDate: true,
+        photosTaken: true,
+        photosDate: true,
+        photosTime: true,
+        panelTemperature: true,
+        irradiance: true,
+        weather: true,
+        windSpeed: true,
+        dataUploaded: true,
+        analysisStarted: true,
+        analysisStartDate: true,
+        analysisCompleted: true,
+        analysisCompletedDate: true,
+        reportCreated: true,
+        reportSent: true,
+        reportSentDate: true,
+        feedbackReceived: true,
+        feedbackContent: true,
+        status: true,
+        notes: true,
+        clientType: true,
+        salesRep: true,
+        salesRepEmail: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!client) {
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+    }
+  
+    // Continue with the rest of your logic
     // Get current user 
     const user = await getUser(request as NextRequest);
     if (!user) {
@@ -218,19 +328,6 @@ export async function GET(
         { status: 403 }
       );
     }
-    
-    // Fetch client
-    const client = await prisma.client.findUnique({
-      where: { id: Number(id) },
-      include: {
-        salesRep: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
     
     if (!client) {
       return NextResponse.json(
@@ -260,8 +357,8 @@ export async function GET(
     
     // Add sales rep to contacts category if available
     if (client.salesRep) {
-      categorizedData["kontakty"]["Obchodní zástupce"] = client.salesRep.name;
-      categorizedData["kontakty"]["Email obchodního zástupce"] = client.salesRep.email;
+      categorizedData["kontakty"]["Obchodní zástupce"] = client.salesRep;
+      categorizedData["kontakty"]["Email obchodního zástupce"] = client.salesRepEmail;
     }
     
     // Log the access
@@ -270,7 +367,7 @@ export async function GET(
       String(user.id),
       `Viewed categorized client data: ${client.companyName}`,
       "Client",
-      id,
+      String(clientId),
       "info"
     );
     

@@ -24,13 +24,95 @@ export async function GET() {
     }
     
     const clients = await prisma.client.findMany({
-      include: {
-        salesRep: {  // Use the correct relation name based on your schema
-          select: {
-            name: true,
-            email: true
-          }
-        }
+      select: {
+        id: true,
+        companyName: true,
+        ico: true,
+        parentCompany: true,
+        parentCompanyIco: true,
+        dataBox: true,
+        fveName: true,
+        installedPower: true,
+        fveAddress: true,
+        gpsCoordinates: true,
+        distanceKm: true,
+        serviceCompany: true,
+        serviceCompanyIco: true,
+        contactPerson: true,
+        phone: true,
+        email: true,
+        contactRole: true,
+        marketingBan: true,
+        offerSent: true,
+        offerSentTo: true,
+        offerSentDate: true,
+        offerApproved: true,
+        offerApprovedDate: true,
+        offerRejectionReason: true,
+        priceExVat: true,
+        dataAnalysisPrice: true,
+        dataCollectionPrice: true,
+        transportationPrice: true,
+        marginGroup: true,
+        multipleInspections: true,
+        inspectionDeadline: true,
+        customContract: true,
+        contractSignedDate: true,
+        readyForBilling: true,
+        firstInvoiceAmount: true,
+        firstInvoiceDate: true,
+        firstInvoiceDueDate: true,
+        firstInvoicePaid: true,
+        secondInvoiceAmount: true,
+        secondInvoiceDate: true,
+        secondInvoiceDueDate: true,
+        secondInvoicePaid: true,
+        finalInvoiceAmount: true,
+        finalInvoiceDate: true,
+        finalInvoiceDueDate: true,
+        finalInvoicePaid: true,
+        totalPriceExVat: true,
+        totalPriceIncVat: true,
+        flightConsentSent: true,
+        flightConsentSentDate: true,
+        flightConsentSigned: true,
+        flightConsentSignedDate: true,
+        fveDrawingsReceived: true,
+        fveDrawingsReceivedDate: true,
+        permissionRequired: true,
+        permissionRequested: true,
+        permissionRequestedDate: true,
+        permissionRequestNumber: true,
+        permissionStatus: true,
+        permissionValidUntil: true,
+        assignedToPilot: true,
+        pilotName: true,
+        pilotAssignedDate: true,
+        expectedFlightDate: true,
+        photosTaken: true,
+        photosDate: true,
+        photosTime: true,
+        panelTemperature: true,
+        irradiance: true,
+        weather: true,
+        windSpeed: true,
+        dataUploaded: true,
+        analysisStarted: true,
+        analysisStartDate: true,
+        analysisCompleted: true,
+        analysisCompletedDate: true,
+        reportCreated: true,
+        reportSent: true,
+        reportSentDate: true,
+        feedbackReceived: true,
+        feedbackContent: true,
+        status: true,
+        notes: true,
+        clientType: true,
+        salesRep: true,
+        salesRepEmail: true,
+        createdAt: true,
+        updatedAt: true
       }
     });
 
@@ -38,8 +120,8 @@ export async function GET() {
     const clientsWithSalesRep = clients.map(client => ({
       ...client,
       salesRep: client.salesRep ? {
-        name: client.salesRep.name,
-        email: client.salesRep.email
+        name: client.salesRep,
+        email: client.salesRepEmail
       } : {
         name: "Nepřiřazeno",
         email: ""
@@ -111,17 +193,19 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Create the client with both ID and name
+    // Create the client without including salesRep
     const client = await prisma.client.create({
       data: {
         companyName: data.companyName,
+        ico: data.ico,
         contactPerson: data.contactPerson,
         phone: data.phone,
         email: data.email,
         fveAddress: data.fveAddress,
-        salesRepId: dbUser.id,
+        salesRep: dbUser.name || "", // Use the user's name as a string
+        salesRepEmail: dbUser.email || "", // Use the user's email as a string
         status: "Nový",
-      },
+      }
     });
     
     // Log the client creation
@@ -226,7 +310,7 @@ export async function PUT(req: NextRequest) {
         phone: data.phone,
         email: data.email,
         fveAddress: data.fveAddress,
-        salesRepId: user.id,
+        salesRep: null,
         status: "Nový",
       },
     });

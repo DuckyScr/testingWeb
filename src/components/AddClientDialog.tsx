@@ -170,6 +170,7 @@ export function AddClientDialog({
       const submissionData = {
         ...formData,
         phone: fullPhoneNumber,
+        ico: formData.ico.trim(), // Ensure ICO is included and trimmed
       };
       
       // Remove countryCode as it's not part of the client model
@@ -180,7 +181,7 @@ export function AddClientDialog({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(submissionData),
+        body: JSON.stringify(clientData), // Use clientData instead of submissionData
       });
 
       if (!response.ok) {

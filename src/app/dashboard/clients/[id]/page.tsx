@@ -67,7 +67,8 @@ const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: stri
     { field: "phone", label: "Telefon", type: "text" },
     { field: "email", label: "Email", type: "text" },
     { field: "contactRole", label: "Funkce kontaktu", type: "text" },
-    { field: "salesRep", label: "Obchodní zástupce", type: "text" }
+    { field: "salesRep", label: "Obchodní zástupce", type: "text" },
+    { field: "salesRepEmail", label: "Email obchodního zástupce", type: "text" }
   ],
   "nabídka_a_smlouva": [
     { field: "marketingBan", label: "Zákaz marketingových oslovení", type: "boolean" },
@@ -165,7 +166,7 @@ interface CategorizedData {
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const clientId = params.id as string;
+  const clientId = params?.id as string;
   
   const [client, setClient] = useState<ClientData | null>(null);
   const [categorizedData, setCategorizedData] = useState<CategorizedData>({});
@@ -176,15 +177,44 @@ export default function ClientDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Add the users state here, inside the component
+  const [users, setUsers] = useState<{id: string, name: string, email: string}[]>([]);
+
+  // Add this useEffect inside the component
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/admin/users');
+        if (response.ok) {
+          const userData = await response.json();
+          setUsers(userData);
+        } else {
+          console.error('Failed to fetch users');
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+    
+    fetchUsers();
+  }, []);
 
   useEffect(() => {
     const fetchClientData = async () => {
       try {
         setLoading(true);
+        
+        // Validate clientId before making the request
+        if (!clientId || isNaN(Number(clientId))) {
+          toast.error("Invalid client ID");
+          router.push('/dashboard/clients');
+          return;
+        }
+
         const response = await fetch(`/api/clients/${clientId}/categorized`);
         
         if (!response.ok) {
-          throw new Error("Failed to fetch client data");
+          throw new Error(`Failed to fetch client data: ${response.statusText}`);
         }
         
         const data = await response.json();
@@ -194,20 +224,33 @@ export default function ClientDetailPage() {
       } catch (error) {
         console.error("Error fetching client data:", error);
         toast.error("Failed to load client data");
+        router.push('/dashboard/clients');
       } finally {
         setLoading(false);
       }
     };
     
     fetchClientData();
-  }, [clientId]);
+  }, [clientId, router]);
 
-  // Update the handleInputChange function to include validation
+  // Update the handleInputChange function to handle salesRep and salesRepEmail
   const handleInputChange = async (category: string, field: string, value: any) => {
     if (!isEditing) return;
     
     // Get the actual field name from the display name
     const fieldName = getFieldNameFromDisplayName(field);
+    
+    // Special handling for salesRep and salesRepEmail
+    if (fieldName === 'salesRep' || fieldName === 'salesRepEmail') {
+      setEditedData(prev => ({
+        ...prev,
+        [category]: {
+          ...prev[category],
+          [field]: value
+        }
+      }));
+      return;
+    }
     
     if (fieldName && isNumericField(fieldName)) {
       // For numeric fields, validate that the input is a number
@@ -605,3 +648,6 @@ export default function ClientDetailPage() {
     </div>
   );
 }
+
+// Make sure the import for Select components is at the top of the file with other imports
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
