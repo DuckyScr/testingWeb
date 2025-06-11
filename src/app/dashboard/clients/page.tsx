@@ -256,6 +256,7 @@ export default function ClientsPage() {
       clientsTableRef.current.fetchClients();
     }
     toast.success("Client added successfully");
+    window.location.reload();
   };
   
   const handleExportXLSX = async () => {

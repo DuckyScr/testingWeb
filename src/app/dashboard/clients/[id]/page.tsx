@@ -22,6 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { isNumericField, isFloatField, isICOField, isValidNumber, lookupCompanyByICO } from "@/lib/validation";
 
+// Update the ValidationResult type
+type ValidationResult = {
+  isValid: boolean;
+  formattedValue: string | number | null;
+  error?: string;
+  rawValue: string | number | null;
+};
+
 // Define the categories from the CSV first row
 const CATEGORIES = [
   "základní_informace",
@@ -50,25 +58,25 @@ const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
 const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: string }[]> = {
   "základní_informace": [
     { field: "companyName", label: "Název společnosti", type: "text" },
-    { field: "ico", label: "IČO", type: "text" },
+    { field: "ico", label: "IČO", type: "ico" },
     { field: "parentCompany", label: "Mateřská firma", type: "text" },
-    { field: "parentCompanyIco", label: "IČO mateřské firmy", type: "text" },
+    { field: "parentCompanyIco", label: "IČO mateřské firmy", type: "ico" },
     { field: "dataBox", label: "Datová schránka", type: "text" },
     { field: "fveName", label: "Název FVE", type: "text" },
     { field: "installedPower", label: "Instalovaný výkon", type: "number" },
     { field: "fveAddress", label: "Adresa FVE", type: "text" },
-    { field: "gpsCoordinates", label: "GPS souřadnice", type: "text" },
+    { field: "gpsCoordinates", label: "GPS souřadnice", type: "gps" },
     { field: "distanceKm", label: "Vzdálenost tam a zpět (km)", type: "number" },
     { field: "serviceCompany", label: "Servisní firma", type: "text" },
-    { field: "serviceCompanyIco", label: "IČO servisní firmy", type: "text" }
+    { field: "serviceCompanyIco", label: "IČO servisní firmy", type: "ico" }
   ],
   "kontakty": [
     { field: "contactPerson", label: "Kontaktní osoba", type: "text" },
-    { field: "phone", label: "Telefon", type: "text" },
-    { field: "email", label: "Email", type: "text" },
+    { field: "phone", label: "Telefon", type: "phone" },
+    { field: "email", label: "Email", type: "email" },
     { field: "contactRole", label: "Funkce kontaktu", type: "text" },
     { field: "salesRep", label: "Obchodní zástupce", type: "text" },
-    { field: "salesRepEmail", label: "Email obchodního zástupce", type: "text" }
+    { field: "salesRepEmail", label: "Email obchodního zástupce", type: "email" }
   ],
   "nabídka_a_smlouva": [
     { field: "marketingBan", label: "Zákaz marketingových oslovení", type: "boolean" },
@@ -163,6 +171,122 @@ interface CategorizedData {
   };
 }
 
+// Update the GPS coordinates validation
+const validateAndFormatInput = (fieldName: string, value: string): ValidationResult => {
+  // GPS coordinates validation (format: XX.XXXXX,YY.YYYYY)
+  if (fieldName === 'gpsCoordinates') {
+    if (!value) {
+      return { isValid: true, formattedValue: '', rawValue: '' };
+    }
+
+    // Remove spaces and normalize decimal separator
+    const cleanValue = value.replace(/\s/g, '').replace(',', '.');
+    
+    // If no comma yet, just return the value
+    if (!value.includes(',')) {
+      return { isValid: true, formattedValue: value, rawValue: value };
+    }
+
+    // Split and validate coordinates
+    const [lat, lon] = value.split(',');
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+
+    // Basic validation
+    if (isNaN(latNum) || isNaN(lonNum)) {
+      return { 
+        isValid: false, 
+        formattedValue: value,
+        rawValue: value,
+        error: 'Neplatné souřadnice'
+      };
+    }
+
+    // Range validation
+    if (latNum < -90 || latNum > 90) {
+      return { 
+        isValid: false, 
+        formattedValue: value,
+        rawValue: value,
+        error: 'Zeměpisná šířka musí být mezi -90 a 90'
+      };
+    }
+    if (lonNum < -180 || lonNum > 180) {
+      return { 
+        isValid: false, 
+        formattedValue: value,
+        rawValue: value,
+        error: 'Zeměpisná délka musí být mezi -180 a 180'
+      };
+    }
+
+    return { 
+      isValid: true, 
+      formattedValue: value,
+      rawValue: value
+    };
+  }
+
+  // Number fields (prices, distance, etc.)
+  if (fieldName.includes('Price') || fieldName.includes('Amount') || fieldName === 'distanceKm' || fieldName === 'installedPower') {
+    if (!value) {
+      return { isValid: true, formattedValue: '', rawValue: null };
+    }
+
+    // Remove all spaces and normalize decimal separator
+    const cleanValue = value.replace(/\s/g, '').replace(',', '.');
+    
+    // If the value is just a decimal point or comma, return empty
+    if (cleanValue === '.' || cleanValue === ',') {
+      return { isValid: true, formattedValue: '', rawValue: null };
+    }
+
+    // Try to parse the number
+    const num = parseFloat(cleanValue);
+    
+    // If it's not a valid number, return the original value
+    if (isNaN(num)) {
+      return { isValid: true, formattedValue: value, rawValue: null };
+    }
+
+    // Validate range
+    if (num < 0) {
+      return { 
+        isValid: false, 
+        formattedValue: value,
+        rawValue: num,
+        error: 'Hodnota musí být kladné číslo'
+      };
+    }
+
+    // Format for display - use different formatting for different fields
+    let formatted: string;
+    if (fieldName.includes('Price')) {
+      formatted = new Intl.NumberFormat('cs-CZ', {
+        style: 'currency',
+        currency: 'CZK',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      }).format(num);
+    } else {
+      formatted = new Intl.NumberFormat('cs-CZ', {
+        style: 'decimal',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: fieldName === 'distanceKm' ? 1 : 2
+      }).format(num);
+    }
+
+    return { 
+      isValid: true, 
+      formattedValue: formatted,
+      rawValue: num
+    };
+  }
+
+  // Default case - no special validation
+  return { isValid: true, formattedValue: value, rawValue: value };
+};
+
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -233,89 +357,132 @@ export default function ClientDetailPage() {
     fetchClientData();
   }, [clientId, router]);
 
-  // Update the handleInputChange function to handle salesRep and salesRepEmail
+  // Update handleInputChange to handle all numeric fields as strings
   const handleInputChange = async (category: string, field: string, value: any) => {
     if (!isEditing) return;
     
-    // Get the actual field name from the display name
     const fieldName = getFieldNameFromDisplayName(field);
+    if (!fieldName) return;
+
+    // Special handling for ICO fields to ensure they're stored as strings
+    if (isICOField(fieldName)) {
+      // Convert to string and remove any non-digit characters
+      const icoString = String(value).replace(/\D/g, '');
+      
+      setEditedData(prev => ({
+        ...prev,
+        [category]: {
+          ...prev[category],
+          [field]: icoString
+        }
+      }));
+
+      // Only do ICO lookup if we have exactly 8 digits
+      if (icoString.length === 8) {
+        const companyInfo = await lookupCompanyByICO(icoString);
+        if (companyInfo) {
+          // If this is the main ICO field, update company name
+          if (fieldName === "ico") {
+            setEditedData(prev => ({
+              ...prev,
+              ["základní_informace"]: {
+                ...prev["základní_informace"],
+                "Název společnosti": companyInfo.companyName || prev["základní_informace"]["Název společnosti"],
+                "Adresa FVE": companyInfo.address || prev["základní_informace"]["Adresa FVE"]
+              }
+            }));
+            toast.success(`Informace o společnosti načteny: ${companyInfo.companyName}`);
+          }
+          
+          // If this is parent company ICO, update parent company name
+          if (fieldName === "parentCompanyIco") {
+            setEditedData(prev => ({
+              ...prev,
+              ["základní_informace"]: {
+                ...prev["základní_informace"],
+                "Mateřská firma": companyInfo.companyName || prev["základní_informace"]["Mateřská firma"]
+              }
+            }));
+            toast.success(`Informace o mateřské společnosti načteny: ${companyInfo.companyName}`);
+          }
+          
+          // If this is service company ICO, update service company name
+          if (fieldName === "serviceCompanyIco") {
+            setEditedData(prev => ({
+              ...prev,
+              ["základní_informace"]: {
+                ...prev["základní_informace"],
+                "Servisní firma": companyInfo.companyName || prev["základní_informace"]["Servisní firma"]
+              }
+            }));
+            toast.success(`Informace o servisní společnosti načteny: ${companyInfo.companyName}`);
+          }
+        }
+      }
+      return;
+    }
+
+    // Special handling for numeric fields to store as strings
+    if (fieldName === 'installedPower' || 
+        fieldName === 'distanceKm' ||
+        fieldName.includes('Price') || 
+        fieldName.includes('Amount')) {
+      // Convert to string and remove any non-digit characters
+      const stringValue = String(value).replace(/\D/g, '');
+      
+      setEditedData(prev => ({
+        ...prev,
+        [category]: {
+          ...prev[category],
+          [field]: stringValue
+        }
+      }));
+      return;
+    }
+
+    // Special handling for number inputs to allow partial input
+    if (fieldName.includes('Price') || fieldName.includes('Amount')) {
+      // Allow partial input (like decimal point)
+      if (value === '' || value === '.' || value === ',') {
+        setEditedData(prev => ({
+          ...prev,
+          [category]: {
+            ...prev[category],
+            [field]: value
+          }
+        }));
+        return;
+      }
+    }
+
+    const { isValid, formattedValue, error, rawValue } = validateAndFormatInput(fieldName, value);
     
+    if (!isValid) {
+      toast.error(error);
+      return;
+    }
+
     // Special handling for salesRep and salesRepEmail
     if (fieldName === 'salesRep' || fieldName === 'salesRepEmail') {
       setEditedData(prev => ({
         ...prev,
         [category]: {
           ...prev[category],
-          [field]: value
+          [field]: formattedValue
         }
       }));
       return;
     }
     
-    if (fieldName && isNumericField(fieldName)) {
-      // For numeric fields, validate that the input is a number
-      if (value && !isValidNumber(value)) {
-        toast.error(`Pole ${field} může obsahovat pouze číselné hodnoty.`);
-        return;
-      }
-      
-      // For float fields, convert to float, otherwise convert to integer
-      if (isFloatField(fieldName)) {
-        value = value === "" ? "" : parseFloat(value);
-      } else {
-        value = value === "" ? "" : parseInt(value, 10);
-      }
-    }
-    
-    // Handle ICO lookup
-    if (fieldName && isICOField(fieldName) && value && value.length === 8) {
-      const companyInfo = await lookupCompanyByICO(value);
-      
-      if (companyInfo) {
-        // If this is the main ICO field, update company name
-        if (fieldName === "ico") {
-          setEditedData(prev => ({
-            ...prev,
-            ["základní_informace"]: {
-              ...prev["základní_informace"],
-              "Název společnosti": companyInfo.companyName || prev["základní_informace"]["Název společnosti"],
-              "Adresa FVE": companyInfo.address || prev["základní_informace"]["Adresa FVE"]
-            }
-          }));
-          toast.success(`Informace o společnosti načteny: ${companyInfo.companyName}`);
-        }
-        
-        // If this is parent company ICO, update parent company name
-        if (fieldName === "parentCompanyIco") {
-          setEditedData(prev => ({
-            ...prev,
-            ["základní_informace"]: {
-              ...prev["základní_informace"],
-              "Mateřská firma": companyInfo.companyName || prev["základní_informace"]["Mateřská firma"]
-            }
-          }));
-          toast.success(`Informace o mateřské společnosti načteny: ${companyInfo.companyName}`);
-        }
-        
-        // If this is service company ICO, update service company name
-        if (fieldName === "serviceCompanyIco") {
-          setEditedData(prev => ({
-            ...prev,
-            ["základní_informace"]: {
-              ...prev["základní_informace"],
-              "Servisní firma": companyInfo.companyName || prev["základní_informace"]["Servisní firma"]
-            }
-          }));
-          toast.success(`Informace o servisní společnosti načteny: ${companyInfo.companyName}`);
-        }
-      }
-    }
+    // For number fields, store the raw number value
+    // For other fields, store the formatted value
+    const valueToStore = typeof rawValue === 'number' ? rawValue : formattedValue;
     
     setEditedData(prev => ({
       ...prev,
       [category]: {
         ...prev[category],
-        [field]: value
+        [field]: valueToStore
       }
     }));
   };
@@ -356,61 +523,68 @@ export default function ClientDetailPage() {
     return isValid;
   };
   
-  // Update handleSave to include validation
+  // Update handleSave to ensure all price fields are stored as strings
   const handleSave = async () => {
-      // Validate all fields before saving
-      if (!validateAllFields()) {
-        return;
+    if (!validateAllFields()) {
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const processedData: Record<string, any> = {};
+      
+      Object.keys(editedData).forEach(category => {
+        Object.entries(editedData[category]).forEach(([displayName, value]) => {
+          const fieldName = getFieldNameFromDisplayName(displayName);
+          if (fieldName) {
+            // Convert ICO, distanceKm, installedPower and price fields to strings
+            if (isICOField(fieldName) || 
+                fieldName === 'installedPower' || 
+                fieldName === 'distanceKm' ||
+                fieldName.includes('Price') || 
+                fieldName.includes('Amount')) {
+              processedData[fieldName] = value ? String(value) : null;
+            }
+            // Convert date fields to ISO-8601 format
+            else if (CATEGORY_FIELDS[category].find(f => f.field === fieldName)?.type === 'date') {
+              processedData[fieldName] = new Date(value).toISOString();
+            } 
+            // Keep other fields as is
+            else {
+              processedData[fieldName] = value;
+            }
+          }
+        });
+      });
+      
+      // Now TypeScript knows processedData can have any string key
+      if ('categorizedData' in processedData) {
+        delete processedData.categorizedData;
       }
       
-      setSaving(true);
-      try {
-        // Convert the edited data back to a flat structure with correct field names
-        const processedData: Record<string, any> = {};
-        
-        Object.keys(editedData).forEach(category => {
-          Object.entries(editedData[category]).forEach(([displayName, value]) => {
-            // Map display names back to field names
-            const fieldName = getFieldNameFromDisplayName(displayName);
-            if (fieldName) {
-              // Convert date fields to ISO-8601 format
-              if (CATEGORY_FIELDS[category].find(f => f.field === fieldName)?.type === 'date') {
-                processedData[fieldName] = new Date(value).toISOString();
-              } else {
-                processedData[fieldName] = value;
-              }
-            }
-          });
-        });
-        
-        // Now TypeScript knows processedData can have any string key
-        if ('categorizedData' in processedData) {
-          delete processedData.categorizedData;
-        }
-        
-        const response = await fetch(`/api/clients/${clientId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(processedData),
-        });
-  
-        if (!response.ok) {
-          throw new Error("Failed to update client data");
-        }
-  
-        // Update the displayed data with the edited data
-        setCategorizedData(editedData);
-        setIsEditing(false);
-        toast.success("Client data updated successfully");
-      } catch (error) {
-        console.error("Error updating client data:", error);
-        toast.error("Failed to update client data: " + (error instanceof Error ? error.message : String(error)));
-      } finally {
-        setSaving(false);
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update client data");
       }
-    };
+
+      // Update the displayed data with the edited data
+      setCategorizedData(editedData);
+      setIsEditing(false);
+      toast.success("Client data updated successfully");
+    } catch (error) {
+      console.error("Error updating client data:", error);
+      toast.error("Failed to update client data: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDiscard = () => {
     // Reset edited data to the original data
@@ -441,8 +615,42 @@ export default function ClientDetailPage() {
     }
   };
 
+  // Update the renderFieldValue function
   function renderFieldValue(category: string, field: string, value: any) {
+    const fieldType = CATEGORY_FIELDS[category].find(f => f.label === field)?.type || 'text';
+    const fieldName = getFieldNameFromDisplayName(field);
+
     if (!isEditing) {
+      // Format display value for non-editing mode
+      if (fieldName?.includes('Price') || fieldName?.includes('Amount')) {
+        const num = parseFloat(value);
+        if (!isNaN(num)) {
+          return (
+            <span className="text-base">
+              {new Intl.NumberFormat('cs-CZ', {
+                style: 'currency',
+                currency: 'CZK',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+              }).format(num)}
+            </span>
+          );
+        }
+      }
+      if (fieldName === 'distanceKm' || fieldName === 'installedPower') {
+        const num = parseFloat(value);
+        if (!isNaN(num)) {
+          return (
+            <span className="text-base">
+              {new Intl.NumberFormat('cs-CZ', {
+                style: 'decimal',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+              }).format(num)}
+            </span>
+          );
+        }
+      }
       return (
         <span className="text-base">
           {value === true ? "Ano" : 
@@ -451,9 +659,6 @@ export default function ClientDetailPage() {
         </span>
       );
     }
-
-    const fieldName = getFieldNameFromDisplayName(field);
-    const fieldType = CATEGORY_FIELDS[category].find(f => f.field === fieldName)?.type;
 
     switch (fieldType) {
       case 'boolean':
@@ -466,19 +671,64 @@ export default function ClientDetailPage() {
       case 'number':
         return (
           <Input 
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={editedData[category][field] || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
             className="max-w-xs"
+            placeholder={fieldName?.includes('Price') || fieldName?.includes('Amount') ? "0 Kč" : "0"}
           />
         );
       case 'date':
         return (
           <Input 
             type="date"
-            value={value}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
             className="max-w-xs"
+          />
+        );
+      case 'email':
+        return (
+          <Input 
+            type="email"
+            value={editedData[category][field] || ''}
+            onChange={(e) => handleInputChange(category, field, e.target.value)}
+            className="max-w-xs"
+            placeholder="napr@email.cz"
+          />
+        );
+      case 'phone':
+        return (
+          <Input 
+            type="tel"
+            value={editedData[category][field] || ''}
+            onChange={(e) => handleInputChange(category, field, e.target.value)}
+            className="max-w-xs"
+            placeholder="123 456 789"
+          />
+        );
+      case 'ico':
+        return (
+          <Input 
+            type="text"
+            inputMode="numeric"
+            maxLength={8}
+            value={editedData[category][field] || ''}
+            onChange={(e) => handleInputChange(category, field, e.target.value)}
+            className="max-w-xs"
+            placeholder="12345678"
+          />
+        );
+      case 'gps':
+        return (
+          <Input 
+            type="text"
+            inputMode="decimal"
+            value={editedData[category][field] || ''}
+            onChange={(e) => handleInputChange(category, field, e.target.value)}
+            className="max-w-xs"
+            placeholder="50.12345,14.12345"
           />
         );
       default:
