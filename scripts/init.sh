@@ -11,7 +11,7 @@ wait_for_db() {
 wait_for_db
 
 echo "Running database migrations..."
-npx prisma db push
+npx prisma db push --accept-data-loss
 
 echo "Creating admin user..."
 npm run create-user
