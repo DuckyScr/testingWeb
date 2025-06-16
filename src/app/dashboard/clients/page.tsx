@@ -296,12 +296,28 @@ export default function ClientsPage() {
 
   // Helper function to format field values
   const formatValue = (value: any, field: string): string => {
-    if (field === 'salesRep') {
-      return typeof value === 'object' && value?.name ? value.name : 'Nepřiřazeno';
-    }
-    if (value === true) return "Ano";
-    if (value === false) return "Ne";
     if (value === null || value === undefined) return "—";
+    if (typeof value === "boolean") return value ? "Ano" : "Ne";
+    
+    // Check if the field is a date field and format it
+    if (field.includes("Date") && typeof value === "string") {
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        console.error(`Error parsing date for field ${field}: ${value}`, e);
+      }
+    }
+
+    if (typeof value === "object" && value !== null) {
+      // Handle salesRep object specifically
+      if (field === 'salesRep') {
+        return (value as { name?: string; email?: string }).name || (value as { name?: string; email?: string }).email || "Nepřiřazeno";
+      }
+      return String(value);
+    }
     return String(value);
   };
 

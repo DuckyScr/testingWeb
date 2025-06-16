@@ -19,10 +19,11 @@ model User {
   role      String   @default("user") // admin, manager, user
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clients   Client[]
+  clients   Client[]  @relation("ClientSalesRep")
   logs      Log[]
 
-  DroneSale DroneSale[]
+  // Sales rep relation for drone sales
+  droneSales DroneSale[] @relation("DroneSaleSalesRep")
 }
 
 // Client model for FVE (Solar) clients
@@ -47,6 +48,10 @@ model Client {
   email                  String?   // Kontakt - email
   contactRole            String?   // kontakt funkce
   marketingBan           Boolean   @default(false) // Zákaz marketingových oslovení
+  
+  // Sales representative relation
+  salesRepId             String?   // Foreign key to User
+  salesRep               User?     @relation("ClientSalesRep", fields: [salesRepId], references: [id])
   
   // Offer and contract
   offerSent              Boolean   @default(false) // Poslána ANO/NE
@@ -131,17 +136,9 @@ model Client {
   status                 String    @default("new")
   notes                  String?
   clientType             String    @default("fve")
-  salesRep               String?   // Sales rep name
   salesRepEmail          String?   // New field for sales rep email
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
-
-  // Remove the relation and index
-  // salesRepId             String?
-  // salesRep               User?     @relation(fields: [salesRepId], references: [id])
-  // @@index([salesRepId])
-
-  User User[]
 }
 
 // Drone Sales model
@@ -156,16 +153,16 @@ model DroneSale {
   fveName           String?
   status            String    @default("new")
   notes             String?
-  distanceKm        String?
-  marginGroup       String?
-  
-  // Relationships
-  salesRepId        String?
-  salesRep          User?     @relation(fields: [salesRepId], references: [id])
+  distanceKm         String?
+  marginGroup        String?
   
   // Metadata
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  
+  // Sales representative relation
+  salesRepId        String?  // Foreign key to User
+  salesRep          User?    @relation("DroneSaleSalesRep", fields: [salesRepId], references: [id])
   
   @@index([salesRepId])
 }

@@ -146,17 +146,12 @@ export default function DroneSaleDetailPage() {
 
   // Handle field changes
   const handleFieldChange = async (category: string, field: string, value: any) => {
-    // For numeric fields, validate and convert to number
+    console.log(`Handling change for ${category}.${field}:`, value);
+
+    // For numeric fields, allow raw string input for smooth typing, validate on blur/save.
+    // Conversion to number will happen later, either before save or as needed for specific displays.
     if (isNumericField(field)) {
-      if (value && !isValidNumber(value)) {
-        toast.error(`${field} musí být číslo`);
-        return;
-      }
-      
-      // Convert to appropriate number type
-      if (value) {
-        value = isFloatField(field) ? parseFloat(value) : parseInt(value, 10);
-      }
+      // No immediate validation or conversion here. Just allow the value to pass through to state.
     }
     
     // For ICO fields, validate and lookup company info
@@ -171,7 +166,7 @@ export default function DroneSaleDetailPage() {
       // Perform lookup only if ICO is valid
       if (value && isValidICO(value)) {
         const companyInfo = await lookupCompanyByICO(value);
-        if (companyInfo && companyInfo.companyName) {
+        if (companyInfo && companyInfo.data && companyInfo.data.companyName) {
           // Update company name and address if available
           setEditedData(prev => {
             const newData = { ...prev };
@@ -180,7 +175,16 @@ export default function DroneSaleDetailPage() {
             for (const cat of CATEGORIES) {
               const hasCompanyName = CATEGORY_FIELDS[cat].some(f => f.field === "companyName");
               if (hasCompanyName) {
-                newData[cat] = { ...newData[cat], companyName: companyInfo.companyName };
+                newData[cat] = { ...newData[cat], companyName: companyInfo.data.companyName };
+                break;
+              }
+            }
+    
+            // Also update address if available from companyInfo.data
+            for (const cat of CATEGORIES) {
+              const hasAddress = CATEGORY_FIELDS[cat].some(f => f.field === "address");
+              if (hasAddress && companyInfo.data.address) {
+                newData[cat] = { ...newData[cat], address: companyInfo.data.address };
                 break;
               }
             }
@@ -188,7 +192,7 @@ export default function DroneSaleDetailPage() {
             return newData;
           });
     
-          toast.success(`Název společnosti byl automaticky doplněn: ${companyInfo.companyName}`);
+          toast.success(`Název společnosti byl automaticky doplněn: ${companyInfo.data.companyName}`);
         }
       }
     } else {
@@ -410,13 +414,13 @@ export default function DroneSaleDetailPage() {
             <Input
               id={field}
               type="number"
-              value={value || ""}
+              value={value === null || value === undefined ? "" : value}
               onChange={(e) => handleFieldChange(category, field, e.target.value)}
               className="mt-1"
               step={isFloatField(field) ? "0.01" : "1"}
               min="0"
               onBlur={(e) => {
-                if (e.target.value && !isValidNumber(e.target.value)) {
+                if (e.target.value && !isValidNumber(e.target.value).isValid) {
                   toast.error(`${label} musí být číslo`);
                 }
               }}

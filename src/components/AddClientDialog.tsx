@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { Save } from "lucide-react";
 
 // Country codes for phone numbers
 const countryCodes = [
@@ -43,6 +44,12 @@ const countryCodes = [
   { code: "+36", country: "Maďarsko" },
 ];
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 type ClientFormData = {
   companyName: string;
   ico: string;
@@ -51,6 +58,8 @@ type ClientFormData = {
   countryCode: string;
   email: string;
   fveAddress: string;
+  salesRepId: string;
+  salesRepEmail: string;
   // Add other fields as necessary
 };
 
@@ -67,6 +76,7 @@ export function AddClientDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
   const [formData, setFormData] = useState<ClientFormData>({
     companyName: "",
     ico: "",
@@ -75,7 +85,26 @@ export function AddClientDialog({
     countryCode: "+420", // Default to Czech Republic
     email: "",
     fveAddress: "",
+    salesRepId: "",
+    salesRepEmail: ""
   });
+
+  // Fetch users for dropdown
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('/api/users');
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        toast.error('Nepodařilo se načíst seznam obchodních zástupců');
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -153,6 +182,16 @@ export function AddClientDialog({
     setFormData(prev => ({ ...prev, phone: formattedValue }));
   };
 
+  // Handle sales rep selection
+  const handleSalesRepChange = (userId: string) => {
+    const selectedUser = users.find(user => user.id === userId);
+    setFormData(prev => ({
+      ...prev,
+      salesRepId: userId,
+      salesRepEmail: selectedUser?.email || ""
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -225,15 +264,25 @@ export function AddClientDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Přidat nového klienta</DialogTitle>
+            <DialogDescription>
+              Vyplňte údaje o novém klientovi. Všechna pole označená * jsou povinná.
+            </DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>Přidat nového klienta</DialogTitle>
-              <DialogDescription>
-                Vyplňte informace o novém klientovi. Povinná pole jsou označena *.
-              </DialogDescription>
-            </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Název společnosti *</Label>
+                  <Input
+                    id="companyName"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="ico">IČO *</Label>
                   <div className="flex items-center gap-2">
@@ -251,16 +300,6 @@ export function AddClientDialog({
                   <p className="text-xs text-muted-foreground">
                     Po zadání IČO se automaticky doplní údaje o společnosti
                   </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Název společnosti *</Label>
-                  <Input
-                    id="companyName"
-                    name="companyName"
-                    value={formData.companyName}
-                    onChange={handleChange}
-                    required
-                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -322,14 +361,41 @@ export function AddClientDialog({
                   />
                 </div>
               </div>
-              {/* Add more fields as necessary */}
+              <div className="space-y-2">
+                <Label htmlFor="salesRep">Obchodní zástupce</Label>
+                <Select
+                  value={formData.salesRepId}
+                  onValueChange={handleSalesRepChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vyberte obchodního zástupce" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCancel}>
                 Zrušit
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Ukládám..." : "Uložit"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Ukládání...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Uložit
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

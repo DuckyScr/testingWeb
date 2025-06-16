@@ -4,6 +4,28 @@ import { verify } from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/permissions";
 import { createLog } from "@/lib/logging";
+import { Prisma } from '@prisma/client';
+
+// Get all scalar fields from Prisma Client to use for dynamic selection
+const allClientScalarFields = Prisma.dmmf.datamodel.models.find(m => m.name === 'Client')?.fields
+  .filter(f => f.kind === 'scalar')
+  .map(f => f.name) || [];
+
+// Define fields for "základní_informace" category (copied from [id]/categorized/route.ts)
+const ZAKLADNI_INFORMACE_FIELDS = [
+  "companyName",
+  "ico",
+  "parentCompany",
+  "parentCompanyIco",
+  "dataBox",
+  "fveName",
+  "installedPower",
+  "fveAddress",
+  "gpsCoordinates",
+  "distanceKm",
+  "serviceCompany",
+  "serviceCompanyIco"
+];
 
 // This would be in an environment variable in a real app
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -23,110 +45,66 @@ export async function GET() {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     
-    const clients = await prisma.client.findMany({
-      select: {
-        id: true,
-        companyName: true,
-        ico: true,
-        parentCompany: true,
-        parentCompanyIco: true,
-        dataBox: true,
-        fveName: true,
-        installedPower: true,
-        fveAddress: true,
-        gpsCoordinates: true,
-        distanceKm: true,
-        serviceCompany: true,
-        serviceCompanyIco: true,
-        contactPerson: true,
-        phone: true,
-        email: true,
-        contactRole: true,
-        marketingBan: true,
-        offerSent: true,
-        offerSentTo: true,
-        offerSentDate: true,
-        offerApproved: true,
-        offerApprovedDate: true,
-        offerRejectionReason: true,
-        priceExVat: true,
-        dataAnalysisPrice: true,
-        dataCollectionPrice: true,
-        transportationPrice: true,
-        marginGroup: true,
-        multipleInspections: true,
-        inspectionDeadline: true,
-        customContract: true,
-        contractSignedDate: true,
-        readyForBilling: true,
-        firstInvoiceAmount: true,
-        firstInvoiceDate: true,
-        firstInvoiceDueDate: true,
-        firstInvoicePaid: true,
-        secondInvoiceAmount: true,
-        secondInvoiceDate: true,
-        secondInvoiceDueDate: true,
-        secondInvoicePaid: true,
-        finalInvoiceAmount: true,
-        finalInvoiceDate: true,
-        finalInvoiceDueDate: true,
-        finalInvoicePaid: true,
-        totalPriceExVat: true,
-        totalPriceIncVat: true,
-        flightConsentSent: true,
-        flightConsentSentDate: true,
-        flightConsentSigned: true,
-        flightConsentSignedDate: true,
-        fveDrawingsReceived: true,
-        fveDrawingsReceivedDate: true,
-        permissionRequired: true,
-        permissionRequested: true,
-        permissionRequestedDate: true,
-        permissionRequestNumber: true,
-        permissionStatus: true,
-        permissionValidUntil: true,
-        assignedToPilot: true,
-        pilotName: true,
-        pilotAssignedDate: true,
-        expectedFlightDate: true,
-        photosTaken: true,
-        photosDate: true,
-        photosTime: true,
-        panelTemperature: true,
-        irradiance: true,
-        weather: true,
-        windSpeed: true,
-        dataUploaded: true,
-        analysisStarted: true,
-        analysisStartDate: true,
-        analysisCompleted: true,
-        analysisCompletedDate: true,
-        reportCreated: true,
-        reportSent: true,
-        reportSentDate: true,
-        feedbackReceived: true,
-        feedbackContent: true,
-        status: true,
-        notes: true,
-        clientType: true,
-        salesRep: true,
-        salesRepEmail: true,
-        createdAt: true,
-        updatedAt: true
+    // Get current user's role and ID
+    const currentUser = { id: decoded.id, role: decoded.role };
+    const isAdmin = currentUser.role === "ADMIN";
+
+    // Construct the select object dynamically
+    const selectOptions: Prisma.ClientSelect = {
+      id: true,
+      companyName: true,
+      salesRepId: true, // Always select salesRepId for access control
+      salesRep: { // Always select salesRep for display
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    };
+
+    // Add all other scalar fields to the select options
+    allClientScalarFields.forEach(field => {
+      // Ensure we don't overwrite the explicit select for relations or core fields if they share names
+      if (!(field in selectOptions)) {
+        selectOptions[field as keyof typeof selectOptions] = true;
       }
     });
 
-    // Map the results to include the sales rep name
-    const clientsWithSalesRep = clients.map(client => ({
-      ...client,
-      salesRep: client.salesRep ? {
-        name: client.salesRep,
-        email: client.salesRepEmail
-      } : {
-        name: "Nepřiřazeno",
-        email: ""
+    const clients = await prisma.client.findMany({
+      select: selectOptions,
+    });
+
+    const processedClients = clients.map(client => {
+      const isAssignedSalesRep = currentUser.id === client.salesRepId;
+
+      if (client.salesRepId && !isAssignedSalesRep && !isAdmin) {
+        // If client has a salesRepId and current user is not the assigned sales rep and not admin,
+        // return only basic information fields.
+        const filteredClient: Record<string, any> = {};
+        ZAKLADNI_INFORMACE_FIELDS.forEach(field => {
+          if (client[field as keyof typeof client] !== undefined) {
+            filteredClient[field] = client[field as keyof typeof client];
+          }
+        });
+        // Ensure id, companyName, salesRepId, salesRep, and salesRepEmail are always included even if filtered
+        filteredClient.id = client.id;
+        filteredClient.companyName = client.companyName;
+        filteredClient.salesRepId = client.salesRepId;
+        filteredClient.salesRep = client.salesRep;
+        filteredClient.salesRepEmail = client.salesRepEmail;
+        filteredClient.salesRepName = client.salesRep?.name || "Nepřiřazeno"; // Ensure salesRepName is always set
+
+        return filteredClient;
+      } else {
+        // Otherwise, return all fields for the client, with salesRepName and salesRepEmail
+        return {
+          ...client,
+          salesRepName: client.salesRep?.name || "Nepřiřazeno",
+          salesRepEmail: client.salesRep?.email || ""
+        };
       }
-    }));
+    });
 
     // Log the action
     await createLog(
@@ -138,9 +116,9 @@ export async function GET() {
       "info"
     );
 
-    return NextResponse.json(clientsWithSalesRep);
+    return NextResponse.json(processedClients);
   } catch (error) {
-    console.error("Error fetching clients:", error);
+    // console.error("Error fetching clients:", error);
     return NextResponse.json(
       { error: "Failed to fetch clients" },
       { status: 500 }
@@ -193,18 +171,20 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Create the client without including salesRep
+    // Create the client with proper sales rep
     const client = await prisma.client.create({
       data: {
         companyName: data.companyName,
         ico: data.ico,
-        contactPerson: data.contactPerson,
-        phone: data.phone,
-        email: data.email,
-        fveAddress: data.fveAddress,
-        salesRep: dbUser.name || "", // Use the user's name as a string
-        salesRepEmail: dbUser.email || "", // Use the user's email as a string
-        status: "Nový",
+        contactPerson: data.contactPerson || "",
+        phone: data.phone || "",
+        email: data.email || "",
+        fveAddress: data.fveAddress || "",
+        salesRep: data.salesRepId ? {
+          connect: { id: data.salesRepId }
+        } : undefined,
+        salesRepEmail: data.salesRepEmail || "",
+        status: "Nový"
       }
     });
     
@@ -220,7 +200,7 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json(client, { status: 201 });
   } catch (error) {
-    console.error("Error creating client:", error);
+    // console.error("Error creating client:", error);
     return NextResponse.json(
       { error: "Nepodařilo se vytvořit klienta" },
       { status: 500 }

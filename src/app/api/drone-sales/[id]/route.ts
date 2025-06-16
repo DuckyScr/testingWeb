@@ -29,6 +29,7 @@ export async function PUT(
     
     // Get request body
     const body = await request.json();
+    console.log('PUT /api/drone-sales/[id]: Incoming request body:', body);
     
     // Check specific permissions based on what's being updated
     if (body.companyName !== undefined) {
@@ -69,24 +70,42 @@ export async function PUT(
     }
     
     // Handle salesRepId separately for the relation
-    let salesRepId;
-    if ('salesRepId' in body) {
+    let salesRepId: string | null | undefined;
+    if ('salesRep' in body && body.salesRep !== null) {
+      // If salesRep is an object, try to extract its id
+      if (typeof body.salesRep === 'object' && body.salesRep.id) {
+        salesRepId = body.salesRep.id;
+      } else if (typeof body.salesRep === 'string') {
+        // If salesRep is a string (could be an ID if not object yet)
+        salesRepId = body.salesRep;
+      }
+      delete body.salesRep; // Remove the salesRep object/string from the body
+    } else if ('salesRepId' in body) {
+      // Fallback for salesRepId directly in body (shouldn't happen with current frontend)
       salesRepId = body.salesRepId;
       delete body.salesRepId;
+    } else {
+      salesRepId = null; // Ensure it's set to null if no sales rep is provided
     }
     
     // Remove salesRep if it's in the body (it should be in include, not data)
+    // This line is redundant after the above block, but keeping for safety if there are other unexpected salesRep forms
     if ('salesRep' in body) {
       delete body.salesRep;
     }
     
     // Process dates to ensure they're in the correct format for Prisma
     const processedData = processDates(body, DRONE_DATE_FIELDS);
+    console.log('PUT /api/drone-sales/[id]: Processed data:', processedData);
     
-    // Add the salesRep connect if salesRepId was provided
+    // Add the salesRep connect/disconnect if salesRepId was provided or explicitly set to null
     if (salesRepId) {
       processedData.salesRep = {
         connect: { id: salesRepId }
+      };
+    } else if (salesRepId === null) {
+      processedData.salesRep = {
+        disconnect: true
       };
     }
     
@@ -97,12 +116,14 @@ export async function PUT(
       include: {
         salesRep: {
           select: {
+            id: true,
             name: true,
             email: true
           }
         }
       }
     });
+    console.log('PUT /api/drone-sales/[id]: Updated drone sale:', updatedDroneSale);
     
     // Log the update
     await createLog(
@@ -116,7 +137,7 @@ export async function PUT(
     
     return NextResponse.json(updatedDroneSale);
   } catch (error) {
-    console.error("Error updating drone sale:", error);
+    // console.error("Error updating drone sale:", error);
     return NextResponse.json(
       { message: "Error updating drone sale", error: String(error) },
       { status: 500 }
@@ -146,6 +167,7 @@ export async function GET(
       include: {
         salesRep: {
           select: {
+            id: true,
             name: true,
             email: true
           }
@@ -172,7 +194,7 @@ export async function GET(
     
     return NextResponse.json(droneSale);
   } catch (error) {
-    console.error("Error fetching drone sale:", error);
+    // console.error("Error fetching drone sale:", error);
     return NextResponse.json(
       { message: "Error fetching drone sale", error: String(error) },
       { status: 500 }
@@ -234,7 +256,7 @@ export async function DELETE(
     
     return NextResponse.json({ message: "Drone sale deleted successfully" });
   } catch (error) {
-    console.error("Error deleting drone sale:", error);
+    // console.error("Error deleting drone sale:", error);
     return NextResponse.json(
       { message: "Error deleting drone sale", error: String(error) },
       { status: 500 }

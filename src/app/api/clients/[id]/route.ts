@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { processDates } from "@/lib/date-utils";
 import { createLog } from "@/lib/logging";
 import { getUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { Prisma } from '@prisma/client';
 
 // Define date fields that need processing
 const FVE_DATE_FIELDS = [
@@ -13,8 +13,83 @@ const FVE_DATE_FIELDS = [
   'finalInvoiceDueDate', 'flightConsentSentDate', 'flightConsentSignedDate', 
   'fveDrawingsReceivedDate', 'permissionRequestedDate', 'permissionValidUntil', 
   'pilotAssignedDate', 'expectedFlightDate', 'photosDate', 
-  'analysisStartedDate', 'analysisCompletedDate', 'reportSentDate'
+  'analysisStartedDate', 'analysisCompletedDate', 'reportSentDate',
+  'analysisStartDate'
 ];
+
+// Define fields that should be stored as strings but might come as numbers
+const NUMERIC_STRING_FIELDS = [
+  'installedPower',
+  'distanceKm',
+  'priceExVat',
+  'dataAnalysisPrice',
+  'dataCollectionPrice',
+  'transportationPrice',
+  'firstInvoiceAmount',
+  'secondInvoiceAmount',
+  'finalInvoiceAmount',
+  'totalPriceExVat',
+  'totalPriceIncVat',
+  'panelTemperature',
+  'irradiance',
+  'windSpeed'
+];
+
+// Define fields for "základní_informace" category
+const ZAKLADNI_INFORMACE_FIELDS = [
+  "companyName",
+  "ico",
+  "parentCompany",
+  "parentCompanyIco",
+  "dataBox",
+  "fveName",
+  "installedPower",
+  "fveAddress",
+  "gpsCoordinates",
+  "distanceKm",
+  "serviceCompany",
+  "serviceCompanyIco"
+];
+
+// Function to convert numeric fields to strings
+function convertNumericFieldsToStrings(data: any) {
+  const result = { ...data };
+  NUMERIC_STRING_FIELDS.forEach(field => {
+    if (field in result && result[field] !== null) {
+      result[field] = String(result[field]);
+    }
+  });
+  return result;
+}
+
+// Function to ensure proper date format
+function ensureISODate(date: any): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (typeof date === 'string') {
+    // If it's just a date string (YYYY-MM-DD), add time component
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return new Date(`${date}T00:00:00.000Z`);
+    }
+    // Try to parse as ISO string
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+// Update the processDates function
+function processDates(data: any, dateFields: string[]) {
+  const result = { ...data };
+  dateFields.forEach(field => {
+    if (field in result) {
+      result[field] = ensureISODate(result[field]);
+    }
+  });
+  return result;
+}
 
 export async function PUT(
   request: NextRequest,
@@ -31,15 +106,43 @@ export async function PUT(
     }
 
     const body = await request.json();
-    // Handle salesRep and salesRepEmail
-    if ('salesRep' in body && typeof body.salesRep === 'object') {
-      // If salesRep is an object (from the old relation), extract the name and email
-      body.salesRep = body.salesRep.name || "";
-      body.salesRepEmail = body.salesRep.email || "";
+    
+    // Before processing the update, check permissions based on salesRepId
+    const existingClient = await prisma.client.findUnique({
+      where: { id: Number(id) },
+      select: {
+        salesRepId: true,
+      },
+    });
+
+    if (!existingClient) {
+      return NextResponse.json(
+        { message: "Client not found" },
+        { status: 404 }
+      );
+    }
+
+    // If a sales rep is assigned to the client, restrict editing
+    if (existingClient.salesRepId) {
+      const isAssignedSalesRep = user.id === existingClient.salesRepId;
+      const isAdmin = user.role === "ADMIN";
+
+      if (!isAssignedSalesRep && !isAdmin) {
+        return NextResponse.json(
+          { message: "You don't have permission to edit this client" },
+          { status: 403 }
+        );
+      }
     }
 
     // Process dates to ensure they're in the correct format for Prisma
     let processedData = processDates(body, FVE_DATE_FIELDS);
+
+    // Convert numeric fields to strings
+    processedData = convertNumericFieldsToStrings(processedData);
+
+    // Remove salesRepId and salesRepEmail from processedData as they're handled separately
+    const { salesRepId, salesRepEmail, ...restData } = processedData;
 
     // Update the client using the id from the URL params
     const updatedClient = await prisma.client.update({
@@ -47,10 +150,32 @@ export async function PUT(
         id: Number(id) // Convert string id to number
       },
       data: {
-        ...processedData,
-        salesRep: body.salesRep,
-        salesRepEmail: body.salesRepEmail,
-      },
+        ...restData,
+        // Handle salesRep relation
+        salesRep: salesRepId ? {
+          connect: { id: salesRepId }
+        } : {
+          disconnect: true
+        },
+        salesRepEmail: salesRepEmail || null
+      }
+    });
+
+    // Fetch the updated client with sales rep info
+    const clientWithSalesRep = await prisma.client.findUnique({
+      where: { id: Number(id) },
+      select: {
+        id: true,
+        companyName: true,
+        salesRep: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        salesRepEmail: true
+      }
     });
 
     await createLog(
@@ -62,7 +187,7 @@ export async function PUT(
       "info"
     );
 
-    return NextResponse.json(updatedClient);
+    return NextResponse.json(clientWithSalesRep);
   } catch (error) {
     console.error("Error updating client:", error);
     return NextResponse.json(
@@ -88,14 +213,56 @@ export async function GET(
       );
     }
     
-    // Fetch client
+    // First, fetch only the salesRepId and companyName to determine access
+    const initialClientCheck = await prisma.client.findUnique({
+      where: { id: Number(id) },
+      select: {
+        id: true,
+        companyName: true,
+        salesRepId: true,
+      },
+    });
+
+    if (!initialClientCheck) {
+      return NextResponse.json(
+        { message: "Client not found" },
+        { status: 404 }
+      );
+    }
+
+    const isAssignedSalesRep = user.id === initialClientCheck.salesRepId;
+    const isAdmin = await hasPermission(user.role, "admin");
+
+    let selectFields: Prisma.ClientSelect = {
+      id: true,
+      companyName: true,
+      salesRepId: true, // Always select salesRepId for UI logic
+      salesRep: { // Always select salesRep for UI display (name/email)
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    };
+
+    // If a salesRepId is assigned and the user is neither the assigned sales rep nor an admin,
+    // restrict the fields to only basic information.
+    if (initialClientCheck.salesRepId && !isAssignedSalesRep && !isAdmin) {
+      ZAKLADNI_INFORMACE_FIELDS.forEach(field => {
+        selectFields = { ...selectFields, [field]: true };
+      });
+    } else {
+      // Otherwise, select all scalar fields
+      Object.values(Prisma.ClientScalarFieldEnum).forEach(field => {
+        selectFields = { ...selectFields, [field]: true };
+      });
+    }
+
+    // Fetch the client data with the determined select fields
     const client = await prisma.client.findUnique({
       where: { id: Number(id) },
-        select: {
-          salesRep: true,
-          salesRepEmail: true,
-          companyName: true,
-        }
+      select: selectFields,
     });
     
     if (!client) {
@@ -104,7 +271,7 @@ export async function GET(
         { status: 404 }
       );
     }
-    
+
     // Log the access
     await createLog(
       "GET_CLIENT",
@@ -115,9 +282,9 @@ export async function GET(
       "info"
     );
     
-    return NextResponse.json(client);
+    return NextResponse.json(client); // Return the potentially filtered client
   } catch (error) {
-    console.error("Error fetching client:", error);
+    // console.error("Error fetching client:", error);
     return NextResponse.json(
       { message: "Error fetching client", error: String(error) },
       { status: 500 }

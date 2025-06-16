@@ -21,6 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { isNumericField, isFloatField, isICOField, isValidNumber, lookupCompanyByICO } from "@/lib/validation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Update the ValidationResult type
 type ValidationResult = {
@@ -54,6 +55,13 @@ const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
   "zákaznická_zkušenost": "Zákaznická zkušenost"
 };
 
+// Add User interface
+interface User {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 // Define fields for each category
 const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: string }[]> = {
   "základní_informace": [
@@ -75,8 +83,7 @@ const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: stri
     { field: "phone", label: "Telefon", type: "phone" },
     { field: "email", label: "Email", type: "email" },
     { field: "contactRole", label: "Funkce kontaktu", type: "text" },
-    { field: "salesRep", label: "Obchodní zástupce", type: "text" },
-    { field: "salesRepEmail", label: "Email obchodního zástupce", type: "email" }
+    { field: "salesRepId", label: "Obchodní zástupce", type: "select" }
   ],
   "nabídka_a_smlouva": [
     { field: "marketingBan", label: "Zákaz marketingových oslovení", type: "boolean" },
@@ -86,7 +93,6 @@ const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: stri
     { field: "offerApproved", label: "Nabídka schválena", type: "boolean" },
     { field: "offerApprovedDate", label: "Datum schválení nabídky", type: "date" },
     { field: "offerRejectionReason", label: "Důvod odmítnutí nabídky", type: "text" },
-    // Change this line from offerPrice to priceExVat to match your schema
     { field: "priceExVat", label: "Cena bez DPH", type: "number" },
     { field: "dataAnalysisPrice", label: "Cena za vyhodnocení dat", type: "number" },
     { field: "dataCollectionPrice", label: "Cena za sběr dat", type: "number" },
@@ -173,12 +179,13 @@ interface CategorizedData {
 
 // Update the GPS coordinates validation
 const validateAndFormatInput = (fieldName: string, value: string): ValidationResult => {
+  // If value is empty, return empty
+  if (!value) {
+    return { isValid: true, formattedValue: '', rawValue: '' };
+  }
+
   // GPS coordinates validation (format: XX.XXXXX,YY.YYYYY)
   if (fieldName === 'gpsCoordinates') {
-    if (!value) {
-      return { isValid: true, formattedValue: '', rawValue: '' };
-    }
-
     // Remove spaces and normalize decimal separator
     const cleanValue = value.replace(/\s/g, '').replace(',', '.');
     
@@ -195,28 +202,25 @@ const validateAndFormatInput = (fieldName: string, value: string): ValidationRes
     // Basic validation
     if (isNaN(latNum) || isNaN(lonNum)) {
       return { 
-        isValid: false, 
+        isValid: true, // Changed to true to allow partial input
         formattedValue: value,
-        rawValue: value,
-        error: 'Neplatné souřadnice'
+        rawValue: value
       };
     }
 
     // Range validation
     if (latNum < -90 || latNum > 90) {
       return { 
-        isValid: false, 
+        isValid: true, // Changed to true to allow partial input
         formattedValue: value,
-        rawValue: value,
-        error: 'Zeměpisná šířka musí být mezi -90 a 90'
+        rawValue: value
       };
     }
     if (lonNum < -180 || lonNum > 180) {
       return { 
-        isValid: false, 
+        isValid: true, // Changed to true to allow partial input
         formattedValue: value,
-        rawValue: value,
-        error: 'Zeměpisná délka musí být mezi -180 a 180'
+        rawValue: value
       };
     }
 
@@ -229,34 +233,20 @@ const validateAndFormatInput = (fieldName: string, value: string): ValidationRes
 
   // Number fields (prices, distance, etc.)
   if (fieldName.includes('Price') || fieldName.includes('Amount') || fieldName === 'distanceKm' || fieldName === 'installedPower') {
-    if (!value) {
-      return { isValid: true, formattedValue: '', rawValue: null };
-    }
-
     // Remove all spaces and normalize decimal separator
     const cleanValue = value.replace(/\s/g, '').replace(',', '.');
     
-    // If the value is just a decimal point or comma, return empty
+    // If the value is just a decimal point or comma, allow it
     if (cleanValue === '.' || cleanValue === ',') {
-      return { isValid: true, formattedValue: '', rawValue: null };
+      return { isValid: true, formattedValue: value, rawValue: value };
     }
 
     // Try to parse the number
     const num = parseFloat(cleanValue);
     
-    // If it's not a valid number, return the original value
+    // If it's not a valid number, still allow the input
     if (isNaN(num)) {
-      return { isValid: true, formattedValue: value, rawValue: null };
-    }
-
-    // Validate range
-    if (num < 0) {
-      return { 
-        isValid: false, 
-        formattedValue: value,
-        rawValue: num,
-        error: 'Hodnota musí být kladné číslo'
-      };
+      return { isValid: true, formattedValue: value, rawValue: value };
     }
 
     // Format for display - use different formatting for different fields
@@ -283,8 +273,45 @@ const validateAndFormatInput = (fieldName: string, value: string): ValidationRes
     };
   }
 
-  // Default case - no special validation
+  // Default case - no special validation, just pass through the value
   return { isValid: true, formattedValue: value, rawValue: value };
+};
+
+// Utility functions for formatting
+const formatPrice = (value: number | null) => {
+  if (value === null) return "";
+  return new Intl.NumberFormat('cs-CZ', { 
+    style: 'currency', 
+    currency: 'CZK',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
+const formatNumber = (value: number | null, field: string) => {
+  if (value === null) return "";
+  // Special handling for installedPower to use 3 decimal places
+  if (field === 'installedPower') {
+    return new Intl.NumberFormat('cs-CZ', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3
+    }).format(value);
+  }
+  return new Intl.NumberFormat('cs-CZ', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
+const formatDateForDisplay = (dateString: string | null) => {
+  if (!dateString) return "—";
+  try {
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error("Error formatting date:", dateString, error);
+    return "—";
+  }
 };
 
 export default function ClientDetailPage() {
@@ -302,18 +329,17 @@ export default function ClientDetailPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   // Add the users state here, inside the component
-  const [users, setUsers] = useState<{id: string, name: string, email: string}[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   // Add this useEffect inside the component
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch('/api/admin/users');
+        const response = await fetch('/api/users');
         if (response.ok) {
-          const userData = await response.json();
-          setUsers(userData);
-        } else {
-          console.error('Failed to fetch users');
+          const data = await response.json();
+          setUsers(data);
+          // console.log('Fetched users:', data);
         }
       } catch (error) {
         console.error('Error fetching users:', error);
@@ -342,30 +368,58 @@ export default function ClientDetailPage() {
         }
         
         const data = await response.json();
-        setClient(data.client);
-        setCategorizedData(data.categorizedData);
-        setEditedData(data.categorizedData);
+        // console.log('Fetched client data (full response):', data);
+        
+        if (!data.client) {
+          throw new Error('Client data not found');
+        }
+
+        const clientData = data.client;
+        const categorizedDataFromApi = data.categorizedData;
+
+        // Ensure salesRepId is correctly placed in categorizedData.kontakty
+        if (clientData.salesRepId) {
+          if (!categorizedDataFromApi.kontakty) {
+            categorizedDataFromApi.kontakty = {};
+          }
+          categorizedDataFromApi.kontakty.salesRepId = clientData.salesRepId;
+        }
+
+        setClient(clientData);
+        setCategorizedData(categorizedDataFromApi);
+        setEditedData(categorizedDataFromApi);
+        console.log('salesRepId in categorizedData after fetch:', data.categorizedData?.kontakty?.salesRepId);
       } catch (error) {
         console.error("Error fetching client data:", error);
-        toast.error("Failed to load client data");
+        toast.error("Nepodařilo se načíst data klienta");
         router.push('/dashboard/clients');
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchClientData();
   }, [clientId, router]);
 
-  // Update handleInputChange to handle all numeric fields as strings
+  // Update the handleInputChange function to handle sales rep selection
   const handleInputChange = async (category: string, field: string, value: any) => {
-    if (!isEditing) return;
-    
-    const fieldName = getFieldNameFromDisplayName(field);
-    if (!fieldName) return;
+    // Special handling for sales rep selection
+    if (field === 'salesRepId') {
+      const selectedUser = users.find(user => user.id === value);
+      // console.log('handleInputChange - salesRepId:', { value, selectedUser, users });
+      setEditedData(prev => ({
+        ...prev,
+        [category]: {
+          ...prev[category],
+          [field]: value,
+          'salesRepEmail': selectedUser?.email || null
+        }
+      }));
+      return;
+    }
 
     // Special handling for ICO fields to ensure they're stored as strings
-    if (isICOField(fieldName)) {
+    if (isICOField(field)) {
       // Convert to string and remove any non-digit characters
       const icoString = String(value).replace(/\D/g, '');
       
@@ -377,112 +431,43 @@ export default function ClientDetailPage() {
         }
       }));
 
-      // Only do ICO lookup if we have exactly 8 digits
+      // If ICO is 8 digits, trigger company lookup
       if (icoString.length === 8) {
-        const companyInfo = await lookupCompanyByICO(icoString);
-        if (companyInfo) {
-          // If this is the main ICO field, update company name
-          if (fieldName === "ico") {
-            setEditedData(prev => ({
-              ...prev,
-              ["základní_informace"]: {
-                ...prev["základní_informace"],
-                "Název společnosti": companyInfo.companyName || prev["základní_informace"]["Název společnosti"],
-                "Adresa FVE": companyInfo.address || prev["základní_informace"]["Adresa FVE"]
-              }
-            }));
-            toast.success(`Informace o společnosti načteny: ${companyInfo.companyName}`);
-          }
-          
-          // If this is parent company ICO, update parent company name
-          if (fieldName === "parentCompanyIco") {
-            setEditedData(prev => ({
-              ...prev,
-              ["základní_informace"]: {
-                ...prev["základní_informace"],
-                "Mateřská firma": companyInfo.companyName || prev["základní_informace"]["Mateřská firma"]
-              }
-            }));
-            toast.success(`Informace o mateřské společnosti načteny: ${companyInfo.companyName}`);
-          }
-          
-          // If this is service company ICO, update service company name
-          if (fieldName === "serviceCompanyIco") {
-            setEditedData(prev => ({
-              ...prev,
-              ["základní_informace"]: {
-                ...prev["základní_informace"],
-                "Servisní firma": companyInfo.companyName || prev["základní_informace"]["Servisní firma"]
-              }
-            }));
-            toast.success(`Informace o servisní společnosti načteny: ${companyInfo.companyName}`);
-          }
+        const result = await lookupCompanyByICO(icoString);
+        if (result.isValid && result.data) {
+          setEditedData(prev => ({
+            ...prev,
+            'základní_informace': {
+              ...prev['základní_informace'],
+              'companyName': result.data?.companyName || prev['základní_informace'].companyName,
+              'fveAddress': result.data?.address || prev['základní_informace'].fveAddress,
+              'dataBox': result.data?.dataBox || prev['základní_informace'].dataBox
+            }
+          }));
+          toast.success(`Informace o společnosti načteny: ${result.data.companyName}`);
+        } else if (result.error) {
+          toast.error(result.error);
         }
       }
       return;
     }
 
-    // Special handling for numeric fields to store as strings
-    if (fieldName === 'installedPower' || 
-        fieldName === 'distanceKm' ||
-        fieldName.includes('Price') || 
-        fieldName.includes('Amount')) {
-      // Convert to string and remove any non-digit characters
-      const stringValue = String(value).replace(/\D/g, '');
-      
-      setEditedData(prev => ({
-        ...prev,
-        [category]: {
-          ...prev[category],
-          [field]: stringValue
-        }
-      }));
-      return;
-    }
-
-    // Special handling for number inputs to allow partial input
-    if (fieldName.includes('Price') || fieldName.includes('Amount')) {
-      // Allow partial input (like decimal point)
-      if (value === '' || value === '.' || value === ',') {
-        setEditedData(prev => ({
-          ...prev,
-          [category]: {
-            ...prev[category],
-            [field]: value
-          }
-        }));
+    // Handle numeric fields
+    if (isNumericField(field)) {
+      const validation = isValidNumber(value);
+      if (!validation.isValid) {
+        toast.error(validation.error || 'Neplatné číslo');
         return;
       }
+      value = validation.formattedValue;
     }
 
-    const { isValid, formattedValue, error, rawValue } = validateAndFormatInput(fieldName, value);
-    
-    if (!isValid) {
-      toast.error(error);
-      return;
-    }
-
-    // Special handling for salesRep and salesRepEmail
-    if (fieldName === 'salesRep' || fieldName === 'salesRepEmail') {
-      setEditedData(prev => ({
-        ...prev,
-        [category]: {
-          ...prev[category],
-          [field]: formattedValue
-        }
-      }));
-      return;
-    }
-    
-    // For number fields, store the raw number value
-    // For other fields, store the formatted value
-    const valueToStore = typeof rawValue === 'number' ? rawValue : formattedValue;
-    
+    // Update the field value
     setEditedData(prev => ({
       ...prev,
       [category]: {
         ...prev[category],
-        [field]: valueToStore
+        [field]: value
       }
     }));
   };
@@ -500,87 +485,131 @@ export default function ClientDetailPage() {
   };
   
   // Add this function before handleSave
-  const validateAllFields = (): boolean => {
-    let isValid = true;
-    
-    // Check all edited fields for validation
-    Object.keys(editedData).forEach(category => {
-      Object.entries(editedData[category]).forEach(([displayName, value]) => {
-        const fieldName = getFieldNameFromDisplayName(displayName);
-        
-        if (fieldName && isNumericField(fieldName) && value !== "" && !isValidNumber(value)) {
-          toast.error(`Pole ${displayName} obsahuje neplatnou číselnou hodnotu.`);
-          isValid = false;
+  const validateAllFields = () => {
+    try {
+      // Validate all fields in editedData
+      for (const [category, fields] of Object.entries(editedData)) {
+        for (const [field, value] of Object.entries(fields)) {
+          // Skip validation for sales rep fields
+          if (field === 'salesRepId' || field === 'salesRepEmail') {
+            continue;
+          }
+
+          // Get field configuration
+          const fieldConfig = CATEGORY_FIELDS[category]?.find(f => f.field === field);
+          if (!fieldConfig) {
+            console.warn(`No field configuration found for ${category}.${field}`);
+            continue;
+          }
+
+          // Validate numeric fields
+          if (isNumericField(field)) {
+            const validation = isValidNumber(value);
+            if (!validation.isValid) {
+              toast.error(`${fieldConfig.label}: ${validation.error || 'Neplatné číslo'}`);
+              return false;
+            }
+          }
+
+          // Validate ICO fields
+          if (isICOField(field) && value) {
+            const icoString = String(value).replace(/\D/g, '');
+            if (icoString.length !== 8) {
+              toast.error(`${fieldConfig.label}: IČO musí být 8místné číslo`);
+              return false;
+            }
+          }
         }
-        
-        if (fieldName && isICOField(fieldName) && value && !/^\d{8}$/.test(value.toString())) {
-          toast.error(`Pole ${displayName} musí obsahovat 8místné číslo.`);
-          isValid = false;
-        }
-      });
-    });
-    
-    return isValid;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error validating fields:', error);
+      toast.error('Chyba při validaci polí');
+      return false;
+    }
   };
   
-  // Update handleSave to ensure all price fields are stored as strings
+  // Update the handleSave function to include sales rep data
   const handleSave = async () => {
     if (!validateAllFields()) {
       return;
     }
-    
+
     setSaving(true);
     try {
-      const processedData: Record<string, any> = {};
+      // Transform the data back to the format expected by the API
+      const transformedData: Record<string, any> = {};
       
-      Object.keys(editedData).forEach(category => {
-        Object.entries(editedData[category]).forEach(([displayName, value]) => {
-          const fieldName = getFieldNameFromDisplayName(displayName);
-          if (fieldName) {
-            // Convert ICO, distanceKm, installedPower and price fields to strings
-            if (isICOField(fieldName) || 
-                fieldName === 'installedPower' || 
-                fieldName === 'distanceKm' ||
-                fieldName.includes('Price') || 
-                fieldName.includes('Amount')) {
-              processedData[fieldName] = value ? String(value) : null;
-            }
-            // Convert date fields to ISO-8601 format
-            else if (CATEGORY_FIELDS[category].find(f => f.field === fieldName)?.type === 'date') {
-              processedData[fieldName] = new Date(value).toISOString();
-            } 
-            // Keep other fields as is
-            else {
-              processedData[fieldName] = value;
-            }
+      // First, handle the sales rep data
+      if (editedData.kontakty?.salesRepId) {
+        transformedData.salesRepId = editedData.kontakty.salesRepId;
+        transformedData.salesRepEmail = editedData.kontakty.salesRepEmail;
+      } else {
+        transformedData.salesRepId = null;
+        transformedData.salesRepEmail = null;
+      }
+
+      // Then handle all other fields
+      Object.entries(editedData).forEach(([category, fields]) => {
+        Object.entries(fields).forEach(([field, value]) => {
+          // Skip sales rep fields as they're handled above
+          if (field === 'salesRepId' || field === 'salesRepEmail') {
+            return;
+          }
+
+          // Get the field name from the category fields mapping
+          const fieldConfig = CATEGORY_FIELDS[category]?.find(f => f.field === field);
+          if (fieldConfig) {
+            transformedData[field] = value;
           }
         });
       });
-      
-      // Now TypeScript knows processedData can have any string key
-      if ('categorizedData' in processedData) {
-        delete processedData.categorizedData;
-      }
-      
+
+      console.log('Sending update with data:', transformedData);
+
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(processedData),
+        body: JSON.stringify(transformedData),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update client data");
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update client');
       }
 
-      // Update the displayed data with the edited data
-      setCategorizedData(editedData);
-      setIsEditing(false);
-      toast.success("Client data updated successfully");
+      const updatedClient = await response.json();
+      
+      // After successful save, re-fetch categorized data to update frontend state
+      const refetchResponse = await fetch(`/api/clients/${clientId}/categorized`);
+      if (!refetchResponse.ok) {
+        throw new Error(`Failed to refetch client data after save: ${refetchResponse.statusText}`);
+      }
+      const refetchedData = await refetchResponse.json();
+
+      // Apply the same salesRepId mapping logic as in fetchClientData
+      const refetchedClientData = refetchedData.client;
+      const refetchedCategorizedData = refetchedData.categorizedData;
+
+      if (refetchedClientData.salesRepId) {
+        if (!refetchedCategorizedData.kontakty) {
+          refetchedCategorizedData.kontakty = {};
+        }
+        refetchedCategorizedData.kontakty.salesRepId = refetchedClientData.salesRepId;
+      }
+
+      setClient(refetchedClientData);
+      setCategorizedData(refetchedCategorizedData);
+      setEditedData(refetchedCategorizedData);
+
+      toast.success("Klient byl úspěšně aktualizován!");
+      setIsEditing(false); // Exit editing mode after successful save
     } catch (error) {
-      console.error("Error updating client data:", error);
-      toast.error("Failed to update client data: " + (error instanceof Error ? error.message : String(error)));
+      console.error("Error saving client:", error);
+      toast.error(`Nepodařilo se uložit změny: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setSaving(false);
     }
@@ -616,96 +645,79 @@ export default function ClientDetailPage() {
   };
 
   // Update the renderFieldValue function
-  function renderFieldValue(category: string, field: string, value: any) {
-    const fieldType = CATEGORY_FIELDS[category].find(f => f.label === field)?.type || 'text';
-    const fieldName = getFieldNameFromDisplayName(field);
-
+  const renderFieldValue = (category: string, field: string, value: any, fieldLabel: string, type: string) => {
     if (!isEditing) {
+      // Special handling for sales rep display
+      if (field === 'salesRepId') {
+        const selectedUser = users.find(user => user.id === value);
+        // console.log('Rendering sales rep display:', { value, selectedUser, users });
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-base font-medium">
+              {selectedUser ? (selectedUser.name || selectedUser.email) : "Žádný"}
+            </span>
+            {selectedUser?.email && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                ({selectedUser.email})
+              </span>
+            )}
+          </div>
+        );
+      }
+
       // Format display value for non-editing mode
-      if (fieldName?.includes('Price') || fieldName?.includes('Amount')) {
-        const num = parseFloat(value);
-        if (!isNaN(num)) {
-          return (
-            <span className="text-base">
-              {new Intl.NumberFormat('cs-CZ', {
-                style: 'currency',
-                currency: 'CZK',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2
-              }).format(num)}
-            </span>
-          );
-        }
+      if (fieldLabel?.includes('Price') || fieldLabel?.includes('Amount')) {
+        return formatPrice(value);
       }
-      if (fieldName === 'distanceKm' || fieldName === 'installedPower') {
-        const num = parseFloat(value);
-        if (!isNaN(num)) {
-          return (
-            <span className="text-base">
-              {new Intl.NumberFormat('cs-CZ', {
-                style: 'decimal',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2
-              }).format(num)}
-            </span>
-          );
-        }
+      if (isNumericField(field)) {
+        return formatNumber(value, field);
       }
-      return (
-        <span className="text-base">
-          {value === true ? "Ano" : 
-           value === false ? "Ne" : 
-           value || "—"}
-        </span>
-      );
+      if (value === true) return "Ano";
+      if (value === false) return "Ne";
+      if (value === null || value === undefined) return "—";
+      if (type === 'date') {
+        return formatDateForDisplay(value);
+      }
+      return String(value);
     }
 
-    switch (fieldType) {
+    switch (type) {
       case 'boolean':
         return (
-          <Switch 
-            checked={editedData[category][field] || false}
+          <Switch
+            checked={value === true}
             onCheckedChange={(checked) => handleInputChange(category, field, checked)}
-          />
-        );
-      case 'number':
-        return (
-          <Input 
-            type="text"
-            inputMode="decimal"
-            value={editedData[category][field] || ''}
-            onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
-            placeholder={fieldName?.includes('Price') || fieldName?.includes('Amount') ? "0 Kč" : "0"}
+            disabled={!isEditing}
           />
         );
       case 'date':
         return (
-          <Input 
+          <Input
             type="date"
-            value={value || ''}
+            value={value ? new Date(value).toISOString().split('T')[0] : ""}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
+            className="w-full"
+            disabled={!isEditing}
           />
         );
       case 'email':
         return (
-          <Input 
+          <Input
             type="email"
-            value={editedData[category][field] || ''}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
-            placeholder="napr@email.cz"
+            className="w-full"
+            disabled={!isEditing}
           />
         );
       case 'phone':
         return (
-          <Input 
+          <Input
             type="tel"
-            value={editedData[category][field] || ''}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
-            placeholder="123 456 789"
+            className="w-full"
+            disabled={!isEditing}
           />
         );
       case 'ico':
@@ -714,10 +726,11 @@ export default function ClientDetailPage() {
             type="text"
             inputMode="numeric"
             maxLength={8}
-            value={editedData[category][field] || ''}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
+            className="w-full"
             placeholder="12345678"
+            disabled={!isEditing}
           />
         );
       case 'gps':
@@ -725,43 +738,87 @@ export default function ClientDetailPage() {
           <Input 
             type="text"
             inputMode="decimal"
-            value={editedData[category][field] || ''}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
+            className="w-full"
             placeholder="50.12345,14.12345"
+            disabled={!isEditing}
+          />
+        );
+      case 'select':
+        if (field === 'salesRepId') {
+          console.log('Rendering salesRepId select: value=', value, 'users=', users);
+          return (
+            <Select
+              value={value === null || value === undefined ? "__none__" : String(value)}
+              onValueChange={(newValue) => {
+                handleInputChange(category, field, newValue === "__none__" ? null : newValue);
+              }}
+              disabled={!isEditing}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Vyberte obchodního zástupce" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Žádný</SelectItem>
+                {users.map((user) => {
+                  return (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name || user.email}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          );
+        }
+        return null;
+      case 'number':
+        return (
+          <Input
+            type="number"
+            value={value === null ? "" : value}
+            onChange={(e) => {
+              const newValue = e.target.value === "" ? null : parseFloat(e.target.value);
+              handleInputChange(category, field, newValue);
+            }}
+            step={field === 'installedPower' ? "0.001" : "0.01"}
+            className="w-full"
+            disabled={!isEditing}
           />
         );
       default:
         return (
-          <Input 
+          <Input
             type="text"
-            value={editedData[category][field] || ''}
+            value={value || ''}
             onChange={(e) => handleInputChange(category, field, e.target.value)}
-            className="max-w-xs"
+            className="w-full"
+            disabled={!isEditing}
           />
         );
     }
-  }
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Načítání...</p>
+        </div>
       </div>
     );
   }
 
   if (!client) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Klient nenalezen</h1>
-          <Link href="/dashboard/clients">
-            <Button>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zpět na seznam klientů
-            </Button>
-          </Link>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-lg font-medium">Klient nenalezen</p>
+          <Button onClick={() => router.push('/dashboard/clients')}>
+            Zpět na seznam klientů
+          </Button>
         </div>
       </div>
     );
@@ -850,20 +907,25 @@ export default function ClientDetailPage() {
                 <CardTitle>{CATEGORY_DISPLAY_NAMES[category]}</CardTitle>
               </CardHeader>
               <CardContent>
-                {editedData[category] ? (
+                {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(editedData[category]).map(([field, value]) => (
-                      <div key={field} className="flex flex-col gap-1.5">
-                        <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          {field}
-                        </Label>
-                        {renderFieldValue(category, field, value)}
-                      </div>
-                    ))}
+                    {CATEGORY_FIELDS[category]?.map((fieldConfig) => {
+                      const field = fieldConfig.field;
+                      const fieldLabel = fieldConfig.label;
+                      const type = fieldConfig.type || 'text';
+                      const value = editedData[category]?.[field];
+
+                      return (
+                        <div key={field} className="flex flex-col gap-1.5">
+                          <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            {fieldLabel}
+                          </Label>
+                          {renderFieldValue(category, field, value, fieldLabel, type)}
+                        </div>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <p>Žádná data k zobrazení</p>
-                )}
+                }
               </CardContent>
             </Card>
           </TabsContent>

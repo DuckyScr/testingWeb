@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     
     // Check if user has permission to view drone sales
     const hasViewPermission = await hasPermission(user.role, "view_drone_sales");
+
     if (!hasViewPermission) {
       return NextResponse.json(
         { message: "You don't have permission to view drone sales" },
@@ -89,7 +90,6 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error("Error fetching drone sales:", error);
     return NextResponse.json(
       { message: "Error fetching drone sales", error: String(error) },
       { status: 500 }
@@ -159,7 +159,6 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(newDroneSale, { status: 201 });
   } catch (error) {
-    console.error("Error creating drone sale:", error);
     return NextResponse.json(
       { message: "Error creating drone sale", error: String(error) },
       { status: 500 }

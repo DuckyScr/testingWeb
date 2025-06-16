@@ -21,7 +21,8 @@ const NUMERIC_FIELDS = [
 // Float fields that should accept decimal numbers
 const FLOAT_FIELDS = [
   "windSpeed",
-  "irradiance"
+  "irradiance",
+  "distanceKm"
 ];
 
 // ICO fields that should trigger company lookup
@@ -31,12 +32,64 @@ const ICO_FIELDS = [
   "serviceCompanyIco"
 ];
 
+export type ValidationResult = {
+  isValid: boolean;
+  formattedValue: string | number | null;
+  error?: string;
+  rawValue: string | number | null;
+};
+
+export type CompanyLookupResult = {
+  isValid: boolean;
+  data?: {
+    companyName: string;
+    address: string;
+    dataBox: string;
+  };
+  error?: string;
+};
+
 /**
  * Validates if a value is a valid number
  */
-export function isValidNumber(value: any): boolean {
-  if (value === null || value === undefined || value === "") return true;
-  return !isNaN(Number(value));
+export function isValidNumber(value: any): ValidationResult {
+  if (value === '' || value === null || value === undefined) {
+    return {
+      isValid: true,
+      formattedValue: null,
+      rawValue: null
+    };
+  }
+
+  const stringValue = String(value).replace(/\s/g, '').replace(',', '.');
+
+  // Regex to check if the string represents a valid number (integer or float)
+  // Allows optional leading/trailing spaces and one decimal point
+  if (!/^\d*\.?\d*$/.test(stringValue) || stringValue === '.') {
+    return {
+      isValid: false,
+      formattedValue: null,
+      error: 'Neplatné číslo',
+      rawValue: value
+    };
+  }
+
+  const num = parseFloat(stringValue);
+  if (isNaN(num)) {
+    // This case should ideally not be hit with the regex above, but as a fallback
+    return {
+      isValid: false,
+      formattedValue: null,
+      error: 'Neplatné číslo',
+      rawValue: value
+    };
+  }
+
+  return {
+    isValid: true,
+    formattedValue: num,
+    rawValue: num
+  };
 }
 
 /**
@@ -72,40 +125,31 @@ export function isICOField(fieldName: string): boolean {
 /**
  * Fetches company information from ARES API based on ICO
  */
-export async function lookupCompanyByICO(ico: string): Promise<{ 
-  companyName?: string, 
-  address?: string 
-} | null> {
-  if (!isValidICO(ico)) {
-    toast.error("Neplatné IČO. IČO musí být 8místné číslo.");
-    return null;
-  }
-  
+export const lookupCompanyByICO = async (ico: string): Promise<CompanyLookupResult> => {
   try {
-    // Using ARES API to fetch company information
-    const response = await fetch(`https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/${ico}`);
-    
+    const response = await fetch(`/api/company-lookup?ico=${ico}`);
     if (!response.ok) {
-      if (response.status === 404) {
-        toast.error("Společnost s tímto IČO nebyla nalezena.");
-      } else {
-        toast.error("Nepodařilo se načíst informace o společnosti.");
-      }
-      return null;
+      return {
+        isValid: false,
+        error: 'Nepodařilo se načíst data o společnosti'
+      };
     }
-    
     const data = await response.json();
-    
     return {
-      companyName: data.obchodniJmeno || data.nazev,
-      address: formatAddress(data.sidlo)
+      isValid: true,
+      data: {
+        companyName: data.companyName || '',
+        address: data.address || '',
+        dataBox: data.dataBox || ''
+      }
     };
   } catch (error) {
-    console.error("Error fetching company data:", error);
-    toast.error("Nepodařilo se načíst informace o společnosti.");
-    return null;
+    return {
+      isValid: false,
+      error: 'Chyba při načítání dat o společnosti'
+    };
   }
-}
+};
 
 /**
  * Formats address from ARES API response

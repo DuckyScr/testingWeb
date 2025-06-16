@@ -3,6 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { createLog } from "@/lib/logging";
+import { Prisma } from '@prisma/client';
+
+// Get all scalar fields from Prisma Client to use for dynamic selection
+const allClientScalarFields = Prisma.dmmf.datamodel.models.find(m => m.name === 'Client')?.fields
+  .filter(f => f.kind === 'scalar')
+  .map(f => f.name) || [];
 
 // Define the mapping between database fields and categories
 const FIELD_CATEGORIES = {
@@ -194,140 +200,106 @@ const FIELD_DISPLAY_NAMES: Record<string, string> = {
   feedbackContent: "Obsah zpětné vazby"
 };
 
+// Define fields for "základní_informace" category (copied from route.ts)
+const ZAKLADNI_INFORMACE_FIELDS = [
+  "companyName",
+  "ico",
+  "parentCompany",
+  "parentCompanyIco",
+  "dataBox",
+  "fveName",
+  "installedPower",
+  "fveAddress",
+  "gpsCoordinates",
+  "distanceKm",
+  "serviceCompany",
+  "serviceCompanyIco"
+];
+
+// Define fields for each category
+const CATEGORY_FIELDS: Record<string, { field: string, label: string, type: string }[]> = {
+  "kontakty": [
+    { field: "contactPerson", label: "Kontaktní osoba", type: "text" },
+    { field: "phone", label: "Telefon", type: "phone" },
+    { field: "email", label: "Email", type: "email" },
+    { field: "contactRole", label: "Funkce kontaktu", type: "text" },
+    { field: "salesRepId", label: "Obchodní zástupce", type: "select" }
+  ],
+  // ... other categories can be added if needed
+};
+
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Await params before accessing
-    const { id } = await params;
+    const clientId = Number(params.id);
     
-    if (!id) {
-      return NextResponse.json({ message: "Invalid client ID" }, { status: 400 });
-    }
-
-    const clientId = Number(id);
     if (isNaN(clientId)) {
       return NextResponse.json({ message: "Invalid client ID format" }, { status: 400 });
     }
 
-    // Fetch client
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: {
-        id: true,
-        companyName: true,
-        ico: true,
-        parentCompany: true,
-        parentCompanyIco: true,
-        dataBox: true,
-        fveName: true,
-        installedPower: true,
-        fveAddress: true,
-        gpsCoordinates: true,
-        distanceKm: true,
-        serviceCompany: true,
-        serviceCompanyIco: true,
-        contactPerson: true,
-        phone: true,
-        email: true,
-        contactRole: true,
-        marketingBan: true,
-        offerSent: true,
-        offerSentTo: true,
-        offerSentDate: true,
-        offerApproved: true,
-        offerApprovedDate: true,
-        offerRejectionReason: true,
-        priceExVat: true,
-        dataAnalysisPrice: true,
-        dataCollectionPrice: true,
-        transportationPrice: true,
-        marginGroup: true,
-        multipleInspections: true,
-        inspectionDeadline: true,
-        customContract: true,
-        contractSignedDate: true,
-        readyForBilling: true,
-        firstInvoiceAmount: true,
-        firstInvoiceDate: true,
-        firstInvoiceDueDate: true,
-        firstInvoicePaid: true,
-        secondInvoiceAmount: true,
-        secondInvoiceDate: true,
-        secondInvoiceDueDate: true,
-        secondInvoicePaid: true,
-        finalInvoiceAmount: true,
-        finalInvoiceDate: true,
-        finalInvoiceDueDate: true,
-        finalInvoicePaid: true,
-        totalPriceExVat: true,
-        totalPriceIncVat: true,
-        flightConsentSent: true,
-        flightConsentSentDate: true,
-        flightConsentSigned: true,
-        flightConsentSignedDate: true,
-        fveDrawingsReceived: true,
-        fveDrawingsReceivedDate: true,
-        permissionRequired: true,
-        permissionRequested: true,
-        permissionRequestedDate: true,
-        permissionRequestNumber: true,
-        permissionStatus: true,
-        permissionValidUntil: true,
-        assignedToPilot: true,
-        pilotName: true,
-        pilotAssignedDate: true,
-        expectedFlightDate: true,
-        photosTaken: true,
-        photosDate: true,
-        photosTime: true,
-        panelTemperature: true,
-        irradiance: true,
-        weather: true,
-        windSpeed: true,
-        dataUploaded: true,
-        analysisStarted: true,
-        analysisStartDate: true,
-        analysisCompleted: true,
-        analysisCompletedDate: true,
-        reportCreated: true,
-        reportSent: true,
-        reportSentDate: true,
-        feedbackReceived: true,
-        feedbackContent: true,
-        status: true,
-        notes: true,
-        clientType: true,
-        salesRep: true,
-        salesRepEmail: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-
-    if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
-    }
-  
-    // Continue with the rest of your logic
-    // Get current user 
-    const user = await getUser(request as NextRequest);
+    // Get current user
+    const user = await getUser(request);
     if (!user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
-    
-    // Check if user has permission to view clients
-    const hasViewPermission = await hasPermission(user.role, "view_clients");
-    if (!hasViewPermission) {
+
+    // First, fetch only the salesRepId and companyName to determine access
+    const clientCheck = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        companyName: true,
+        salesRepId: true,
+      },
+    });
+
+    if (!clientCheck) {
       return NextResponse.json(
-        { message: "You don't have permission to view client details" },
-        { status: 403 }
+        { message: "Client not found" },
+        { status: 404 }
       );
     }
+
+    const isAssignedSalesRep = user.id === clientCheck.salesRepId;
+    const isAdmin = user.role === "ADMIN";
+
+    let client;
+    let selectFields: Prisma.ClientSelect = {
+      id: true,
+      companyName: true,
+      salesRepId: true, // Always select salesRepId for UI logic
+      salesRep: { // Always select salesRep for UI display (name/email)
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    };
+
+    // Determine which fields to fetch based on permissions
+    if (clientCheck.salesRepId && !isAssignedSalesRep && !isAdmin) {
+      // If not authorized for full access, only add basic info fields to selectFields
+      ZAKLADNI_INFORMACE_FIELDS.forEach(field => {
+        selectFields[field as keyof typeof selectFields] = true; // Use type assertion to allow dynamic property assignment
+      });
+    } else {
+      // If authorized, add all scalar fields to selectFields
+      allClientScalarFields.forEach(field => {
+        selectFields[field as keyof typeof selectFields] = true;
+      });
+    }
+
+    // Fetch the client data with the determined select fields
+    client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: selectFields,
+    });
     
     if (!client) {
       return NextResponse.json(
@@ -335,54 +307,65 @@ export async function GET(
         { status: 404 }
       );
     }
-    
-    // Categorize client data
-    const categorizedData: Record<string, Record<string, any>> = {};
-    
-    // Initialize categories
-    Object.values(FIELD_CATEGORIES).forEach(category => {
-      if (!categorizedData[category]) {
-        categorizedData[category] = {};
-      }
-    });
-    
-    // Populate categories with client data
-    Object.entries(client).forEach(([field, value]) => {
-      const category = FIELD_CATEGORIES[field as keyof typeof FIELD_CATEGORIES];
+
+    // Categorize the client data
+    const categorizedData: Record<string, any> = {};
+    for (const key in client) {
+      // @ts-ignore - type comes from Prisma and is safe
+      const category = FIELD_CATEGORIES[key];
       if (category) {
-        const displayName = FIELD_DISPLAY_NAMES[field] || field;
-        categorizedData[category][displayName] = value;
+        if (!categorizedData[category]) {
+          categorizedData[category] = {};
+        }
+        // @ts-ignore - type comes from Prisma and is safe
+        categorizedData[category][key] = client[key];
       }
-    });
-    
-    // Add sales rep to contacts category if available
-    if (client.salesRep) {
-      categorizedData["kontakty"]["Obchodní zástupce"] = client.salesRep;
-      categorizedData["kontakty"]["Email obchodního zástupce"] = client.salesRepEmail;
     }
-    
-    // Log the access
+
+    // Handle salesRepId specifically for frontend as it's not in FIELD_CATEGORIES
+    if (client.salesRepId) {
+      if (!categorizedData["kontakty"]) {
+        categorizedData["kontakty"] = {};
+      }
+      categorizedData["kontakty"].salesRepId = client.salesRepId;
+      if (client.salesRep) {
+        // Also include salesRep details for display if available
+        categorizedData["kontakty"].salesRep = client.salesRep;
+        categorizedData["kontakty"].salesRepEmail = client.salesRep.email; // Ensure email is passed for display
+      }
+    } else {
+      // If no salesRepId, ensure it's explicitly null/undefined in contacts
+      if (categorizedData["kontakty"]) {
+        categorizedData["kontakty"].salesRepId = null;
+        categorizedData["kontakty"].salesRep = null;
+        categorizedData["kontakty"].salesRepEmail = null;
+      }
+    }
+
+    // Create a client object with core fields and categorized data
+    const responseClient = {
+      id: client.id,
+      companyName: client.companyName,
+      ico: client.ico, // Include ICO as it's a core info
+      // Add any other top-level fields needed for client overview
+      salesRepId: client.salesRepId,
+      salesRep: client.salesRep,
+      salesRepEmail: client.salesRep?.email || null,
+    };
+
     await createLog(
       "GET_CLIENT_CATEGORIZED",
       String(user.id),
-      `Viewed categorized client data: ${client.companyName}`,
+      `Viewed categorized client: ${client.companyName}`,
       "Client",
-      String(clientId),
+      params.id,
       "info"
     );
-    
-    return NextResponse.json({
-      client: {
-        id: client.id,
-        companyName: client.companyName,
-        ico: client.ico
-      },
-      categorizedData
-    });
+
+    return NextResponse.json({ client: responseClient, categorizedData });
   } catch (error) {
-    console.error("Error fetching categorized client data:", error);
     return NextResponse.json(
-      { message: "Error fetching client data", error: String(error) },
+      { message: "Error fetching categorized client", error: String(error) },
       { status: 500 }
     );
   }
