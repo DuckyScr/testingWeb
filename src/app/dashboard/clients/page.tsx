@@ -3,13 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Upload } from "lucide-react";
+import { CsvImport } from "@/components/csv-import";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { usePermission } from "@/hooks/usePermission";
 import { AddClientDialog } from "@/components/AddClientDialog";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, Plus } from "lucide-react";
+import * as XLSX from 'xlsx';
+import { XLSXImport } from "@/components/xlsx-import";
+
 import {
   Table,
   TableBody,
@@ -190,6 +195,8 @@ export default function ClientsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(CATEGORIES[0]);
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
   const clientsTableRef = useRef<{ fetchClients: () => Promise<void> }>(null);
   const canCreate = usePermission("create_client");
   const canExport = usePermission("view_clients");
@@ -261,33 +268,41 @@ export default function ClientsPage() {
   
   const handleExportXLSX = async () => {
     try {
-      const queryParams = new URLSearchParams();
-      
-      if (search) {
-        queryParams.append("search", search);
-      }
-      
-      if (status) {
-        queryParams.append("status", status);
-      }
-      
-      const response = await fetch(`/api/clients/export?${queryParams.toString()}`);
-      
+      // Fetch all clients without pagination
+      const response = await fetch('/api/clients?limit=1000');
       if (!response.ok) {
-        throw new Error("Failed to export clients");
+        throw new Error('Failed to fetch clients');
       }
+
+      const data = await response.json();
+      const clients = data.data || data;
+
+      // Prepare data with all fields
+      const exportData = clients.map(client => {
+        const exportRow = {};
+        
+        // Add all fields from all categories
+        Object.entries(CATEGORY_FIELDS).forEach(([category, fields]) => {
+          fields.forEach(field => {
+            exportRow[field.field] = client[field.field];
+          });
+        });
+
+        return exportRow;
+      });
+
+      // Create XLSX file
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Clients");
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `clients-export-${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Generate filename with timestamp
+      const filename = `clients-export-${new Date().toISOString().split('T')[0]}.xlsx`;
       
-      toast.success("Clients exported successfully");
+      // Save file
+      XLSX.writeFile(wb, filename);
+      
+      toast.success(`Export successful! File saved as ${filename}`);
     } catch (error) {
       console.error("Error exporting clients:", error);
       toast.error("Failed to export clients. Please try again.");
@@ -331,14 +346,34 @@ export default function ClientsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {canExport && (
-            <Button variant="outline" onClick={handleExportXLSX}>
-              <Download className="mr-2 h-4 w-4" />
-              Export XLSX
-            </Button>
+          {showImport && (
+            <XLSXImport onImportSuccess={() => {
+              setShowImport(false);
+              if (clientsTableRef.current) {
+                clientsTableRef.current.fetchClients();
+              }
+            }} />
           )}
-          {canCreate && (
-            <Button onClick={handleAddClient}>Přidat klienta</Button>
+          {canExport && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportXLSX}>
+                <Download className="mr-2 h-4 w-4" />
+                Export XLSX
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowImport(!showImport)}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import XLSX
+              </Button>
+              {canCreate && (
+                <Button onClick={handleAddClient}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Přidat klienta
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </div>

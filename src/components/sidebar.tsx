@@ -24,11 +24,6 @@ const navItems = [
     icon: ShieldHalf,
   },
   {
-    name: "Import dat",
-    href: "/dashboard/import",
-    icon: FileSpreadsheet,
-  },
-  {
     name: "Nastavení",
     href: "/dashboard/settings",
     icon: Settings,

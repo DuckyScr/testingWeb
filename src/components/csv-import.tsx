@@ -49,9 +49,12 @@ export function CsvImport({ onImportSuccess }: { onImportSuccess: () => void }) 
         }
       }
 
+      window.location.reload();
+
       const result = await response.json();
       toast.success(`Import úspěšný: ${result.imported} klientů importováno`);
       onImportSuccess();
+      
     } catch (error) {
       console.error("Import error:", error);
       toast.error(error instanceof Error 
