@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-
+import Link from "next/link";
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
@@ -52,14 +52,28 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+interface TableRowProps extends React.ComponentProps<"tr"> {
+  onClick?: React.MouseEventHandler<HTMLTableRowElement>;
+}
+
+function TableRow({ className, onClick, style, ...props }: TableRowProps) {
   return (
     <tr
       data-slot="table-row"
       className={cn(
         "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        onClick && "cursor-pointer hover:bg-muted/70 active:bg-muted/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
         className
       )}
+      onClick={onClick}
+      style={onClick ? { ...style, WebkitTapHighlightColor: 'transparent' } : style}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(e as any);
+        }
+      } : undefined}
       {...props}
     />
   )

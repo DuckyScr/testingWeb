@@ -440,26 +440,18 @@ export default function ClientsPage() {
                             {CATEGORY_FIELDS[category].map((field) => (
                               <TableHead key={`${category}-${field.field}`}>{field.label}</TableHead>
                             ))}
-                            <TableHead key="actions">Akce</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {clients.length > 0 ? (
                             clients.map((client) => (
-                              <TableRow key={`${category}-${client.id}`}>
+                              <TableRow key={`${category}-${client.id}`} onClick={() => window.location.href = `/dashboard/clients/${client.id}`}>
                                 <TableCell key={`${category}-${client.id}-name`} className="font-medium">{client.companyName}</TableCell>
                                 {CATEGORY_FIELDS[category].map((field) => (
                                   <TableCell key={`${category}-${client.id}-${field.field}`}>
                                     {formatValue(client[field.field as keyof Client], field.field)}
                                   </TableCell>
                                 ))}
-                                <TableCell key={`${category}-${client.id}-actions`}>
-                                  <Link href={`/dashboard/clients/${client.id}`}>
-                                    <Button variant="ghost" size="sm">
-                                      <ExternalLink className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </TableCell>
                               </TableRow>
                             ))
                           ) : (
