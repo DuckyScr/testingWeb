@@ -289,12 +289,21 @@ export default function AdminPage() {
               "edit_clients",
               "delete_clients",
               "import_clients",
+              "view_all_clients", // New permission to control seeing all clients or assigned ones
               "edit_client_name",
               "edit_client_contact",
               "edit_client_address",
               "edit_client_status",
               "edit_client_documents",
-              "edit_client_invoices"
+              "edit_client_invoices",
+              // Drone Sales Permissions
+              "view_drone_sales",
+              "create_drone_sale", 
+              "edit_drone_sale_name",
+              "edit_drone_sale_contact",
+              "edit_drone_sale_status",
+              "delete_drone_sale",
+              "export_drone_sales"
             ].map((permission) => (
               <TableRow key={permission}>
                 <TableCell>{permission}</TableCell>

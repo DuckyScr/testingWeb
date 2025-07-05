@@ -76,7 +76,8 @@ export default function DroneSalesPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(CATEGORIES[0]);
   const canCreate = usePermission("create_drone_sale");
-  const canExport = usePermission("view_drone_sales");
+  const canExport = usePermission("export_drone_sales");
+  const canView = usePermission("view_drone_sales");
   
   const fetchDroneSales = async () => {
     setLoading(true);
@@ -111,8 +112,10 @@ export default function DroneSalesPage() {
   };
   
   useEffect(() => {
-    fetchDroneSales();
-  }, [page, status]);
+    if (canView.allowed && !canView.loading) {
+      fetchDroneSales();
+    }
+  }, [page, status, canView.allowed, canView.loading]);
   
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +185,26 @@ export default function DroneSalesPage() {
     return String(value);
   };
   
+  // Show loading or access denied if no permissions
+  if (canView.loading) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-center py-10">Loading permissions...</div>
+      </div>
+    );
+  }
+  
+  if (!canView.allowed) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="text-center py-10">
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-gray-600">You don't have permission to view drone sales.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">

@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { usePermission } from "@/hooks/usePermission";
 import {
   Dialog,
   DialogContent,
@@ -95,6 +96,13 @@ export default function DroneSaleDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  
+  // Permission checks
+  const canView = usePermission("view_drone_sales");
+  const canEditName = usePermission("edit_drone_sale_name");
+  const canEditContact = usePermission("edit_drone_sale_contact");
+  const canEditStatus = usePermission("edit_drone_sale_status");
+  const canDelete = usePermission("delete_drone_sale");
 
   useEffect(() => {
     const fetchDroneSaleData = async () => {
@@ -333,15 +341,39 @@ export default function DroneSaleDetailPage() {
     return String(value);
   };
 
+  // Check if user can edit specific field
+  const canEditField = (category: string, field: string) => {
+    // Company name editing permission
+    if (field === 'companyName' || field === 'ico') {
+      return canEditName.allowed;
+    }
+    // Contact fields permission
+    if (['contactPerson', 'phone', 'email', 'address'].includes(field)) {
+      return canEditContact.allowed;
+    }
+    // Status fields permission
+    if (field === 'status') {
+      return canEditStatus.allowed;
+    }
+    // Default to allowing edit if not specifically restricted
+    return true;
+  };
+
   // Render field based on type
   const renderField = (category: string, fieldInfo: { field: string, label: string, type?: string }) => {
     const { field, label, type = "text" } = fieldInfo;
     const value = editedData[category][field] ?? "";
+    const fieldEditable = canEditField(category, field);
     
-    if (!isEditing) {
+    if (!isEditing || !fieldEditable) {
       return (
         <div key={field} className="mb-4">
-          <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+          <Label className="text-sm font-medium text-muted-foreground">
+            {label}
+            {!fieldEditable && isEditing && (
+              <span className="ml-2 text-xs text-orange-600">(No edit permission)</span>
+            )}
+          </Label>
           <div className="mt-1">{formatFieldValue(value)}</div>
         </div>
       );
@@ -467,10 +499,30 @@ export default function DroneSaleDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading || canView.loading) {
     return (
       <div className="container mx-auto p-6 flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+  
+  // Check if user has permission to view drone sales
+  if (!canView.allowed) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-10">
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-gray-600">You don't have permission to view drone sales.</p>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/dashboard')}
+            className="mt-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -527,10 +579,15 @@ export default function DroneSaleDetailPage() {
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(true)}>
-                Smazat
-              </Button>
-              <Button onClick={handleStartEditing}>
+              {canDelete.allowed && (
+                <Button variant="outline" onClick={() => setShowDeleteDialog(true)}>
+                  Smazat
+                </Button>
+              )}
+              <Button 
+                onClick={handleStartEditing}
+                disabled={!canEditName.allowed && !canEditContact.allowed && !canEditStatus.allowed}
+              >
                 Upravit
               </Button>
             </>

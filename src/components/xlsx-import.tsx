@@ -74,7 +74,40 @@ export function XLSXImport({ onImportSuccess }: XLSXImportProps) {
       }
 
       const result = await response.json();
-      toast.success(`Úspěšně importováno ${result.imported} klientů`);
+      
+      // Display detailed import results
+      if (result.summary) {
+        const { newClients, updatedClients, errorCount, totalProcessed } = result.summary;
+        
+        let message = '';
+        if (newClients > 0) message += `${newClients} nových klientů vytvořeno`;
+        if (updatedClients > 0) {
+          if (message) message += ', ';
+          message += `${updatedClients} klientů aktualizováno`;
+        }
+        if (errorCount > 0) {
+          if (message) message += ', ';
+          message += `${errorCount} chyb`;
+        }
+        
+        if (errorCount > 0) {
+          toast.warning(`Import dokončen: ${message}`);
+        } else {
+          toast.success(`Import úspěšný: ${message}`);
+        }
+        
+        // Log errors for debugging
+        if (result.errors && result.errors.length > 0) {
+          console.log('Import errors:', result.errors);
+          result.errors.forEach((error: any) => {
+            console.log(`Row ${error.row}: ${error.error}`);
+          });
+        }
+      } else {
+        // Fallback for old format
+        toast.success(`Úspěšně importováno ${result.imported} klientů`);
+      }
+      
       onImportSuccess();
     } catch (err) {
       setError('Chyba při importu: ' + (err instanceof Error ? err.message : 'Neznámá chyba'));

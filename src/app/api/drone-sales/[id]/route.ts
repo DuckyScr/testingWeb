@@ -161,6 +161,15 @@ export async function GET(
       );
     }
     
+    // Check if user has permission to view drone sales
+    const hasViewPermission = await hasPermission(user.role, "view_drone_sales");
+    if (!hasViewPermission) {
+      return NextResponse.json(
+        { message: "You don't have permission to view drone sales" },
+        { status: 403 }
+      );
+    }
+    
     // Fetch drone sale
     const droneSale = await prisma.droneSale.findUnique({
       where: { id: Number(id) },

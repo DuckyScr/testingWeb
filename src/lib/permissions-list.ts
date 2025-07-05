@@ -1,11 +1,20 @@
 export const PERMISSIONS = {
   // Client Management
   VIEW_CLIENTS: 'view_clients',
-  ADD_CLIENT: 'add_client',
-  EDIT_CLIENT: 'edit_client',
-  DELETE_CLIENT: 'delete_clients',
+  VIEW_ALL_CLIENTS: 'view_all_clients', // Can see all clients vs only assigned clients
+  CREATE_CLIENTS: 'create_clients',
+  EDIT_CLIENTS: 'edit_clients',
+  DELETE_CLIENTS: 'delete_clients',
   IMPORT_CLIENTS: 'import_clients',
   EXPORT_CLIENTS: 'export_clients',
+  
+  // Granular Client Field Permissions
+  EDIT_CLIENT_NAME: 'edit_client_name',
+  EDIT_CLIENT_CONTACT: 'edit_client_contact',
+  EDIT_CLIENT_ADDRESS: 'edit_client_address',
+  EDIT_CLIENT_STATUS: 'edit_client_status',
+  EDIT_CLIENT_DOCUMENTS: 'edit_client_documents',
+  EDIT_CLIENT_INVOICES: 'edit_client_invoices',
 
   // Drone Sales Management
   VIEW_DRONE_SALES: 'view_drone_sales',

@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Check if user has permission to view drone sales
-    const hasViewPermission = await hasPermission(user.role, "view_drone_sales");
-    if (!hasViewPermission) {
+    // Check if user has permission to export drone sales
+    const hasExportPermission = await hasPermission(user.role, "export_drone_sales");
+    if (!hasExportPermission) {
       return NextResponse.json(
         { message: "You don't have permission to export drone sales" },
         { status: 403 }

@@ -16,5 +16,11 @@ npx prisma db push --accept-data-loss
 echo "Creating admin user..."
 npm run create-user
 
+echo "Initializing client visibility permissions..."
+node src/scripts/init-client-visibility-permissions.js
+
+echo "Initializing drone sales permissions..."
+node src/scripts/init-drone-sales-permissions.js
+
 echo "Starting the application..."
 npm start

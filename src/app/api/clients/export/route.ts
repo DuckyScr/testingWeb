@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getClientVisibilityFilter } from "@/lib/client-visibility";
 import * as XLSX from 'xlsx';
 
 export async function GET(request: NextRequest) {
@@ -15,9 +16,9 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Check if user has permission to view clients
-    const hasViewPermission = await hasPermission(user.role, "view_clients");
-    if (!hasViewPermission) {
+    // Check if user has permission to export clients
+    const hasExportPermission = await hasPermission(user.role, "export_clients");
+    if (!hasExportPermission) {
       return NextResponse.json(
         { message: "You don't have permission to export clients" },
         { status: 403 }
@@ -44,6 +45,10 @@ export async function GET(request: NextRequest) {
     if (status) {
       where.status = status;
     }
+    
+    // Apply client visibility filter
+    const visibilityFilter = await getClientVisibilityFilter(user.role, user.id);
+    Object.assign(where, visibilityFilter);
     
     // Fetch all clients matching the criteria (no pagination for export)
     const clients = await prisma.client.findMany({

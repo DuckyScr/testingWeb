@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { createLog } from "@/lib/logging";
 import { getUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { checkFieldPermissions, filterDataByPermissions } from "@/lib/field-permissions";
+import { canViewClient } from "@/lib/client-visibility";
 import { Prisma } from '@prisma/client';
 
 // Define date fields that need processing
@@ -107,6 +109,26 @@ export async function PUT(
 
     const body = await request.json();
     
+    // Check field-level permissions
+    const fieldNames = Object.keys(body);
+    const fieldPermissions = await checkFieldPermissions(user.role, fieldNames, hasPermission);
+    
+    // Filter out fields that the user doesn't have permission to edit
+    const allowedFields = fieldNames.filter(field => fieldPermissions[field]);
+    const deniedFields = fieldNames.filter(field => !fieldPermissions[field]);
+    
+    // If there are denied fields, return an error with details
+    if (deniedFields.length > 0) {
+      return NextResponse.json(
+        { 
+          message: "Insufficient permissions to edit some fields", 
+          deniedFields: deniedFields,
+          allowedFields: allowedFields 
+        },
+        { status: 403 }
+      );
+    }
+    
     // Before processing the update, check permissions based on salesRepId
     const existingClient = await prisma.client.findUnique({
       where: { id: Number(id) },
@@ -119,6 +141,15 @@ export async function PUT(
       return NextResponse.json(
         { message: "Client not found" },
         { status: 404 }
+      );
+    }
+    
+    // Check if user can view this specific client
+    const canView = await canViewClient(user.role, user.id, existingClient.salesRepId);
+    if (!canView) {
+      return NextResponse.json(
+        { message: "You don't have permission to edit this client" },
+        { status: 403 }
       );
     }
 
@@ -213,6 +244,15 @@ export async function GET(
       );
     }
     
+    // Check if user has permission to view clients
+    const hasViewPermission = await hasPermission(user.role, "view_clients");
+    if (!hasViewPermission) {
+      return NextResponse.json(
+        { message: "You don't have permission to view clients" },
+        { status: 403 }
+      );
+    }
+    
     // First, fetch only the salesRepId and companyName to determine access
     const initialClientCheck = await prisma.client.findUnique({
       where: { id: Number(id) },
@@ -227,6 +267,15 @@ export async function GET(
       return NextResponse.json(
         { message: "Client not found" },
         { status: 404 }
+      );
+    }
+    
+    // Check if user can view this specific client
+    const canView = await canViewClient(user.role, user.id, initialClientCheck.salesRepId);
+    if (!canView) {
+      return NextResponse.json(
+        { message: "You don't have permission to view this client" },
+        { status: 403 }
       );
     }
 
@@ -317,11 +366,12 @@ export async function DELETE(
       );
     }
     
-    // Fetch client first to get its details for logging
+    // Fetch client first to get its details for logging and check visibility
     const client = await prisma.client.findUnique({
       where: { id: Number(id) },
       select: {
-        companyName: true
+        companyName: true,
+        salesRepId: true
       }
     });
     
@@ -329,6 +379,15 @@ export async function DELETE(
       return NextResponse.json(
         { message: "Client not found" },
         { status: 404 }
+      );
+    }
+    
+    // Check if user can view this specific client
+    const canView = await canViewClient(user.role, user.id, client.salesRepId);
+    if (!canView) {
+      return NextResponse.json(
+        { message: "You don't have permission to delete this client" },
+        { status: 403 }
       );
     }
     

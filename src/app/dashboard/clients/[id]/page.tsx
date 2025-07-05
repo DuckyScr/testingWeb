@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { isNumericField, isFloatField, isICOField, isValidNumber, lookupCompanyByICO } from "@/lib/validation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCanViewClient } from "@/hooks/useClientVisibility";
 
 // Update the ValidationResult type
 type ValidationResult = {
@@ -330,6 +331,11 @@ export default function ClientDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   // Add the users state here, inside the component
   const [users, setUsers] = useState<User[]>([]);
+  
+  // Check if user can view this specific client
+  const { canView: canViewClient, loading: visibilityLoading } = useCanViewClient(
+    client?.salesRepId || null
+  );
 
   // Add this useEffect inside the component
   useEffect(() => {
@@ -800,7 +806,7 @@ export default function ClientDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading || visibilityLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
@@ -816,6 +822,21 @@ export default function ClientDetailPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
           <p className="text-lg font-medium">Klient nenalezen</p>
+          <Button onClick={() => router.push('/dashboard/clients')}>
+            Zpět na seznam klientů
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Check if user can view this client based on visibility permissions
+  if (!canViewClient) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-lg font-medium">Nemáte oprávnění k zobrazení tohoto klienta</p>
+          <p className="text-sm text-gray-500">Můžete zobrazit pouze klienty přiřazené k vašemu účtu nebo nepřiřazené klienty.</p>
           <Button onClick={() => router.push('/dashboard/clients')}>
             Zpět na seznam klientů
           </Button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verify } from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/permissions";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -24,10 +25,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     
-    // Check if user has admin role
-    if (decodedToken.role !== "ADMIN") {
+    // Check if user has permission to view logs
+    const hasViewLogsPermission = await hasPermission(decodedToken.role, "view_logs");
+    if (!hasViewLogsPermission) {
       return NextResponse.json(
-        { error: "Forbidden - Admin access required" },
+        { error: "You don't have permission to view logs" },
         { status: 403 }
       );
     }

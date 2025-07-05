@@ -4,6 +4,7 @@ import { verify } from 'jsonwebtoken';
 import * as XLSX from 'xlsx';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -29,13 +30,24 @@ export async function POST(req: Request) {
 
     // Verify JWT token
     let userId: string;
+    let userRole: string;
     try {
-      const decoded = verify(authToken, JWT_SECRET) as { id: string };
+      const decoded = verify(authToken, JWT_SECRET) as { id: string; role: string };
       userId = decoded.id;
+      userRole = decoded.role;
     } catch (error) {
       return NextResponse.json(
         { error: 'Invalid token' },
         { status: 401 }
+      );
+    }
+    
+    // Check if user has permission to import clients
+    const hasImportPermission = await hasPermission(userRole, 'import_clients');
+    if (!hasImportPermission) {
+      return NextResponse.json(
+        { error: 'You don\'t have permission to import clients' },
+        { status: 403 }
       );
     }
 
@@ -64,9 +76,55 @@ export async function POST(req: Request) {
       );
     }
 
+    // Fetch all users for sales rep matching
+    const allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true
+      }
+    });
+
     // Import clients
     const importedClients: any[] = [];
+    const updatedClients: any[] = [];
     const errors: Array<{row: number; error: string; data: any}> = [];
+
+    // Helper function to find sales rep by name
+    const findSalesRepByName = (salesRepName: string | null) => {
+      if (!salesRepName || typeof salesRepName !== 'string') {
+        return null;
+      }
+      
+      const trimmedName = salesRepName.trim();
+      if (!trimmedName) {
+        return null;
+      }
+      
+      // Try exact match first (case insensitive)
+      let user = allUsers.find(u => 
+        u.name && u.name.toLowerCase() === trimmedName.toLowerCase()
+      );
+      
+      // If no exact match, try partial match
+      if (!user) {
+        user = allUsers.find(u => 
+          u.name && (
+            u.name.toLowerCase().includes(trimmedName.toLowerCase()) ||
+            trimmedName.toLowerCase().includes(u.name.toLowerCase())
+          )
+        );
+      }
+      
+      // Try matching by email as well
+      if (!user) {
+        user = allUsers.find(u => 
+          u.email.toLowerCase() === trimmedName.toLowerCase()
+        );
+      }
+      
+      return user;
+    };
 
     for (const [index, clientRow] of jsonData.entries()) {
       try {
@@ -78,6 +136,35 @@ export async function POST(req: Request) {
           console.error(errorMsg, clientData);
           throw new Error(errorMsg);
         }
+        
+        // Check if client already exists (based on ICO)
+        const existingClient = await prisma.client.findFirst({
+          where: {
+            ico: clientData.ico
+          }
+        });
+        
+        // Determine sales rep
+        let salesRepId = null;
+        let salesRepEmail = null;
+        
+        // Try to match sales rep by name from import data
+        if (clientData.salesRepName || clientData.salesRep || clientData.obchodniZastupce) {
+          const salesRepName = clientData.salesRepName || clientData.salesRep || clientData.obchodniZastupce;
+          const foundUser = findSalesRepByName(salesRepName);
+          
+          if (foundUser) {
+            salesRepId = foundUser.id;
+            salesRepEmail = foundUser.email;
+          } else {
+            console.warn(`Sales rep not found for name: ${salesRepName} in row ${index + 2}`);
+          }
+        }
+        
+        // If no sales rep found in import data, use current user as fallback
+        if (!salesRepId) {
+          salesRepId = userId;
+        }
 
         // Prepare client data for Prisma
         // Map all fields from XLSX to Prisma model
@@ -88,10 +175,11 @@ export async function POST(req: Request) {
           fveName: clientData.fveName || '',
           installedPower: clientData.installedPower ? String(clientData.installedPower) : '0',
           
-          // Associate with sales rep (user)
-          salesRep: {
-            connect: { id: userId }
-          },
+          // Associate with sales rep (matched or current user)
+          salesRep: salesRepId ? {
+            connect: { id: salesRepId }
+          } : undefined,
+          salesRepEmail: salesRepEmail,
           
           // Map all other fields from XLSX
           parentCompany: clientData.parentCompany || null,
@@ -171,11 +259,22 @@ export async function POST(req: Request) {
           clientType: 'fve' // Default client type
         };
 
-        const createdClient = await prisma.client.create({
-          data: clientDataForCreate,
-        });
-
-        importedClients.push(createdClient);
+        let resultClient;
+        
+        if (existingClient) {
+          // Update existing client (overwrite with new data)
+          resultClient = await prisma.client.update({
+            where: { id: existingClient.id },
+            data: clientDataForCreate,
+          });
+          updatedClients.push(resultClient);
+        } else {
+          // Create new client
+          resultClient = await prisma.client.create({
+            data: clientDataForCreate,
+          });
+          importedClients.push(resultClient);
+        }
       } catch (error) {
         console.error(error);
         errors.push({
@@ -189,8 +288,15 @@ export async function POST(req: Request) {
     const result = {
       success: true,
       imported: importedClients.length,
+      updated: updatedClients.length,
       total: jsonData.length,
       errors,
+      summary: {
+        newClients: importedClients.length,
+        updatedClients: updatedClients.length,
+        errorCount: errors.length,
+        totalProcessed: jsonData.length
+      }
     };
 
     return NextResponse.json(result);

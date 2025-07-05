@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { usePermission } from "@/hooks/usePermission";
+import { WithPermission } from "@/components/withPermission";
+import { ClientVisibilityIndicator } from "@/components/ClientVisibilityIndicator";
 import { AddClientDialog } from "@/components/AddClientDialog";
 import { Download, ExternalLink, Plus } from "lucide-react";
 import * as XLSX from 'xlsx';
@@ -198,8 +200,10 @@ export default function ClientsPage() {
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const clientsTableRef = useRef<{ fetchClients: () => Promise<void> }>(null);
-  const canCreate = usePermission("create_client");
+  const canCreate = usePermission("create_clients");
   const canExport = usePermission("view_clients");
+  const canImport = usePermission("import_clients");
+  const canDelete = usePermission("delete_clients");
 
   const fetchClients = async () => {
     setLoading(true);
@@ -354,12 +358,14 @@ export default function ClientsPage() {
               }
             }} />
           )}
-          {canExport && (
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            <WithPermission permission="export_clients">
               <Button variant="outline" onClick={handleExportXLSX}>
                 <Download className="mr-2 h-4 w-4" />
                 Export XLSX
               </Button>
+            </WithPermission>
+            <WithPermission permission="import_clients">
               <Button
                 variant="outline"
                 onClick={() => setShowImport(!showImport)}
@@ -367,16 +373,18 @@ export default function ClientsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 Import XLSX
               </Button>
-              {canCreate && (
-                <Button onClick={handleAddClient}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Přidat klienta
-                </Button>
-              )}
-            </div>
-          )}
+            </WithPermission>
+            <WithPermission permission="create_clients">
+              <Button onClick={handleAddClient}>
+                <Plus className="mr-2 h-4 w-4" />
+                Přidat klienta
+              </Button>
+            </WithPermission>
+          </div>
         </div>
       </div>
+      
+      <ClientVisibilityIndicator />
       
       <div className="mb-6">
         <form onSubmit={handleSearch} className="flex gap-2">

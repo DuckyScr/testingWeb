@@ -4,6 +4,7 @@ import { verify } from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/permissions";
 import { createLog } from "@/lib/logging";
+import { getClientVisibilityFilter } from "@/lib/client-visibility";
 import { Prisma } from '@prisma/client';
 
 // Get all scalar fields from Prisma Client to use for dynamic selection
@@ -45,6 +46,12 @@ export async function GET() {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     
+    // Check if user has permission to view clients
+    const hasViewPermission = await hasPermission(decoded.role, "view_clients");
+    if (!hasViewPermission) {
+      return NextResponse.json({ error: "You don't have permission to view clients" }, { status: 403 });
+    }
+    
     // Get current user's role and ID
     const currentUser = { id: decoded.id, role: decoded.role };
     const isAdmin = currentUser.role === "ADMIN";
@@ -71,7 +78,11 @@ export async function GET() {
       }
     });
 
+    // Get client visibility filter based on user permissions
+    const visibilityFilter = await getClientVisibilityFilter(currentUser.role, currentUser.id);
+
     const clients = await prisma.client.findMany({
+      where: visibilityFilter,
       select: selectOptions,
     });
 
@@ -144,7 +155,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Check if user has permission to add clients
-    const hasAddPermission = await hasPermission(user.role, "ADD_CLIENT");
+    const hasAddPermission = await hasPermission(user.role, "create_clients");
     if (!hasAddPermission) {
       return NextResponse.json({ error: "You don't have permission to add clients" }, { status: 403 });
     }
@@ -223,6 +234,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     
+    // Check if user has permission to delete clients
+    const hasDeletePermission = await hasPermission(user.role, "delete_clients");
+    if (!hasDeletePermission) {
+      return NextResponse.json({ error: "You don't have permission to delete clients" }, { status: 403 });
+    }
+    
     const { id } = await req.json();
     
     const client = await prisma.client.findUnique({
@@ -270,6 +287,12 @@ export async function PUT(req: NextRequest) {
       user = verify(authToken, JWT_SECRET) as { id: string; email: string; name: string; role: string };
     } catch (error) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+    
+    // Check if user has permission to edit clients
+    const hasEditPermission = await hasPermission(user.role, "edit_clients");
+    if (!hasEditPermission) {
+      return NextResponse.json({ error: "You don't have permission to edit clients" }, { status: 403 });
     }
     
     const data = await req.json();
